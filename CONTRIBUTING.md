@@ -4,7 +4,7 @@
 
 ```
 d:\pm-tool\
-├── thryv-pmtool-backend/   # NestJS + Prisma API
+├── thryv-pmtool-backend/   # Express + Prisma API
 └── thryv-pmtool-frontend/  # Frontend app (Next.js)
 ```
 
