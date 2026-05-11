@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== LOOKUP TABLES ====================
+
+model UserRole {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique  // ADMIN, MANAGER, DESIGNER
+  created_at DateTime @default(now())
+
+  users     User[]   // Users that have this role
+}
+
+model TaskStatus {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique  // NOT_STARTED, IN_PROGRESS, UPLOADED, APPROVED, SCHEDULED
+  created_at DateTime @default(now())
+
+  tasks     Task[]   // Tasks with this status
+}
+
+// ==================== MAIN TABLES ====================
+
+model User {
+  id         Int       @id @default(autoincrement())
+  email      String    @unique
+  password   String
+  name       String
+  role_id    Int       // Foreign key to UserRole
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+
+  // Relations
+  role           UserRole @relation(fields: [role_id], references: [id])
+  managed_clients Client[] @relation("ClientManager")
+  assigned_tasks  Task[]   @relation("TaskDesigner")
+  created_tasks   Task[]   @relation("TaskCreator")
+}
+
+model Client {
+  id             Int       @id @default(autoincrement())
+  name           String
+  brand_details  Json?
+  platforms      String[]
+  active_month   DateTime
+  manager_id     Int
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  // Relations
+  manager         User            @relation("ClientManager", fields: [manager_id], references: [id])
+  packages        Package[]
+  calendar_entries CalendarEntry[]
+}
+
+model Package {
+  id         Int      @id @default(autoincrement())
+  client_id  Int
+  post_type  String
+  platform   String
+  quantity   Int
+  month      DateTime
+  created_at DateTime @default(now())
+
+  // Relations
+  client Client @relation(fields: [client_id], references: [id])
+}
+
+model CalendarEntry {
+  id              Int      @id @default(autoincrement())
+  client_id       Int
+  date            DateTime
+  post_type       String
+  platform        String
+  creative_brief  String?
+  created_at      DateTime @default(now())
+
+  // Relations
+  client Client @relation(fields: [client_id], references: [id])
+  task   Task?
+}
+
+model Task {
+  id                    Int        @id @default(autoincrement())
+  calendar_entry_id     Int        @unique
+  title                 String
+  status_id             Int        // Foreign key to TaskStatus
+  designer_due_date     DateTime
+  publish_date          DateTime
+  assigned_designer_id  Int?
+  created_by_manager_id Int
+  media_urls            String[]
+  comments              Json[]
+  created_at            DateTime   @default(now())
+  updated_at            DateTime   @updatedAt
+
+  // Relations
+  calendar_entry    CalendarEntry @relation(fields: [calendar_entry_id], references: [id])
+  status            TaskStatus    @relation(fields: [status_id], references: [id])
+  assigned_designer User?         @relation("TaskDesigner", fields: [assigned_designer_id], references: [id])
+  created_by_manager User          @relation("TaskCreator", fields: [created_by_manager_id], references: [id])
+}
