@@ -14,7 +14,7 @@ model UserRole {
   name      String   @unique  // ADMIN, MANAGER, DESIGNER
   created_at DateTime @default(now())
 
-  users     User[]   // Users that have this role
+  users User[]
 }
 
 model TaskStatus {
@@ -22,7 +22,25 @@ model TaskStatus {
   name      String   @unique  // NOT_STARTED, IN_PROGRESS, UPLOADED, APPROVED, SCHEDULED
   created_at DateTime @default(now())
 
-  tasks     Task[]   // Tasks with this status
+  tasks Task[]
+}
+
+model PostType {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique  // REEL, CAROUSEL, STATIC, STORY
+  created_at DateTime @default(now())
+
+  packages       Package[]
+  calendar_entries CalendarEntry[]
+}
+
+model Platform {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique  // INSTAGRAM, FACEBOOK, TIKTOK, LINKEDIN
+  created_at DateTime @default(now())
+
+  packages       Package[]
+  calendar_entries CalendarEntry[]
 }
 
 // ==================== MAIN TABLES ====================
@@ -32,7 +50,7 @@ model User {
   email      String    @unique
   password   String
   name       String
-  role_id    Int       // Foreign key to UserRole
+  role_id    Int
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
 
@@ -47,7 +65,7 @@ model Client {
   id             Int       @id @default(autoincrement())
   name           String
   brand_details  Json?
-  platforms      String[]
+  platforms      String[]  // This can stay as array or become relation
   active_month   DateTime
   manager_id     Int
   created_at     DateTime @default(now())
@@ -60,37 +78,41 @@ model Client {
 }
 
 model Package {
-  id         Int      @id @default(autoincrement())
-  client_id  Int
-  post_type  String
-  platform   String
-  quantity   Int
-  month      DateTime
-  created_at DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  client_id     Int
+  post_type_id  Int
+  platform_id   Int
+  quantity      Int
+  month         DateTime
+  created_at    DateTime @default(now())
 
   // Relations
-  client Client @relation(fields: [client_id], references: [id])
+  client    Client    @relation(fields: [client_id], references: [id])
+  post_type PostType  @relation(fields: [post_type_id], references: [id])
+  platform  Platform  @relation(fields: [platform_id], references: [id])
 }
 
 model CalendarEntry {
   id              Int      @id @default(autoincrement())
   client_id       Int
   date            DateTime
-  post_type       String
-  platform        String
+  post_type_id    Int
+  platform_id     Int
   creative_brief  String?
   created_at      DateTime @default(now())
 
   // Relations
-  client Client @relation(fields: [client_id], references: [id])
-  task   Task?
+  client    Client    @relation(fields: [client_id], references: [id])
+  post_type PostType  @relation(fields: [post_type_id], references: [id])
+  platform  Platform  @relation(fields: [platform_id], references: [id])
+  task      Task?
 }
 
 model Task {
   id                    Int        @id @default(autoincrement())
   calendar_entry_id     Int        @unique
   title                 String
-  status_id             Int        // Foreign key to TaskStatus
+  status_id             Int
   designer_due_date     DateTime
   publish_date          DateTime
   assigned_designer_id  Int?
