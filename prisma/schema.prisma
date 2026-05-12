@@ -7,5 +7,4 @@ datasource db {
   url      = env("DATABASE_URL")
 }
   
-  
 // Models will be added in the database schema sprint
