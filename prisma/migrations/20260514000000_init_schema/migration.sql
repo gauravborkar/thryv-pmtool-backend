@@ -1,4 +1,4 @@
-﻿-- CreateTable
+-- CreateTable
 CREATE TABLE "user_roles" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
