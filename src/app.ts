@@ -20,9 +20,15 @@ app.get('/', (_req, res) => {
 
 import authRoutes from './routes/auth.routes'
 import userRoutes from './routes/user.routes'
+import clientRoutes from './routes/client.routes'
+import taskRoutes from './routes/task.routes'
+import calendarRoutes from './routes/calendar.routes'
 
 app.use('/auth', authRoutes)
 app.use('/users', userRoutes)
+app.use('/clients', clientRoutes)
+app.use('/tasks', taskRoutes)
+app.use('/calendar', calendarRoutes)
 
 
 export default app
