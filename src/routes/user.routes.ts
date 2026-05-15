@@ -1,9 +1,26 @@
-import { Router } from 'express'
+import { Router } from 'express';
+import { authenticate } from '../middleware/auth.middleware';
+import prisma from '../lib/prisma';
 
-const router = Router()
+const router = Router();
 
-// TODO (Sprint 2): GET  /users/me
-// TODO (Sprint 2): GET  /users         (ADMIN only)
-// TODO (Sprint 2): PATCH /users/:id/role (ADMIN only)
+// GET /users/me
+router.get('/me', authenticate, async (req: any, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      include: { role: true },
+    });
 
-export default router
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const { password, ...userWithoutPassword } = user;
+    res.json({ data: userWithoutPassword });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+export default router;

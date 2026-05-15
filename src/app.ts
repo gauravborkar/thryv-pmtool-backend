@@ -18,7 +18,12 @@ app.get('/', (_req, res) => {
   res.json({ message: 'Thryv PM Tool API' })
 })
 
-// TODO: routes and middleware will be wired in their respective sprints
+import authRoutes from './routes/auth.routes'
+import userRoutes from './routes/user.routes'
+
+app.use('/auth', authRoutes)
+app.use('/users', userRoutes)
+
 
 export default app
 

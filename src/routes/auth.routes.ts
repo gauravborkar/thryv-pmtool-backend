@@ -1,9 +1,10 @@
-import { Router } from 'express'
+import { Router } from 'express';
+import * as authController from '../controllers/auth.controller';
 
-const router = Router()
+const router = Router();
 
-// TODO (Sprint 2): POST /auth/login
-// TODO (Sprint 2): POST /auth/register
-// TODO (Sprint 2): POST /auth/invite
+router.post('/login', authController.login);
+router.post('/register', authController.register);
+router.post('/refresh', authController.refresh);
 
-export default router
+export default router;
