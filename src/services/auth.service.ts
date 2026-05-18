@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import prisma from '../lib/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
@@ -114,3 +115,56 @@ export const refresh = async (refreshToken: string) => {
     throw new Error('Invalid refresh token');
   }
 };
+
+export const forgotPassword = async (email: string) => {
+  const user = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (!user) {
+    throw new Error('User with this email does not exist');
+  }
+
+  // Generate unique 32-byte secure reset token
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour expiration
+
+  await prisma.user.update({
+    where: { email },
+    data: {
+      reset_password_token: token,
+      reset_password_expires: expiresAt,
+    },
+  });
+
+  return { token, email };
+};
+
+export const resetPassword = async (token: string, passwordStr: string) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      reset_password_token: token,
+      reset_password_expires: {
+        gte: new Date(),
+      },
+    },
+  });
+
+  if (!user) {
+    throw new Error('Invalid or expired reset token');
+  }
+
+  const hashedPasswordStr = await hashPassword(passwordStr);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: hashedPasswordStr,
+      reset_password_token: null,
+      reset_password_expires: null,
+    },
+  });
+
+  return { email: user.email };
+};
+
