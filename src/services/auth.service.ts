@@ -137,7 +137,7 @@ export const forgotPassword = async (email: string) => {
     },
   });
 
-  return { token, email };
+  return { token, email, userId: user.id };
 };
 
 export const resetPassword = async (token: string, passwordStr: string) => {
@@ -165,6 +165,6 @@ export const resetPassword = async (token: string, passwordStr: string) => {
     },
   });
 
-  return { email: user.email };
+  return { id: user.id, email: user.email };
 };
 

@@ -67,6 +67,8 @@ model User {
   created_tasks   Task[]   @relation("TaskCreator")
   comments        Comment[]
   uploads         Attachment[]
+  audit_logs      AuditLog[]
+
 
   // Indexes
   @@index([role_id])
@@ -202,4 +204,23 @@ model Attachment {
   @@index([client_id])
   @@index([uploaded_by])
   @@map("attachments")
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  user_id    Int?
+  action     String
+  entity     String?
+  entity_id  Int?
+  details    Json?
+  ip_address String?
+  created_at DateTime @default(now())
+
+  // Relations
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([action])
+  @@index([created_at])
+  @@map("audit_logs")
 }
