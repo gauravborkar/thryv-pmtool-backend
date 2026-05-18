@@ -22,6 +22,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    console.log('Register request body:', req.body);
     const { email, password, name, role_id, inviteToken } = req.body;
 
     if (!email || !password || !name) {
