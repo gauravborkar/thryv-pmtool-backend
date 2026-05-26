@@ -1,46 +1,23 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware';
-import prisma from '../lib/prisma';
+import * as clientController from '../controllers/client.controller';
 
 const router = Router();
 
-/**
- * @route GET /clients
- * @desc List all clients
- * @access Private (Admin, Manager)
- */
-router.get('/', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res) => {
-  try {
-    const clients = await prisma.client.findMany({
-      include: { manager: true },
-    });
-    res.json({ data: clients });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
-  }
-});
+// Retrieve all clients (role-based: Admin sees all, Manager sees owned)
+router.get('/', authenticate, authorize(['ADMIN', 'MANAGER']), clientController.getClients);
 
-/**
- * @route POST /clients
- * @desc Create a new client
- * @access Private (Admin, Manager)
- */
-router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res) => {
-  try {
-    const { name, manager_id, active_month } = req.body;
-    
-    const client = await prisma.client.create({
-      data: {
-        name,
-        manager_id,
-        active_month: new Date(active_month),
-      },
-    });
+// Retrieve a single client by ID
+router.get('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), clientController.getClientById);
 
-    res.status(201).json({ data: client });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
-  }
-});
+// Create a new client
+router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), clientController.createClient);
+
+// Update a client profile (ID in URL)
+router.put('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), clientController.updateClient);
+
+// Archive a client profile (soft-delete, ID in URL)
+router.delete('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), clientController.archiveClient);
+router.post('/:id/archive', authenticate, authorize(['ADMIN', 'MANAGER']), clientController.archiveClient);
 
 export default router;
