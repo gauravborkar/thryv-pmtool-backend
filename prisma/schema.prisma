@@ -54,9 +54,11 @@ model User {
   password   String
   name       String
   role_id    Int
-  is_active  Boolean  @default(true)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  is_active              Boolean   @default(true)
+  reset_password_token   String?   @unique
+  reset_password_expires DateTime?
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
 
   // Relations
   role            UserRole @relation(fields: [role_id], references: [id])

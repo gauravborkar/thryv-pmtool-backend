@@ -58,3 +58,42 @@ export const refresh = async (req: Request, res: Response, next: NextFunction) =
     res.status(401).json({ message: error.message });
   }
 };
+
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const result = await authService.forgotPassword(email);
+
+    res.status(200).json({
+      message: 'Password reset link / token generated successfully',
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ message: 'Token and new password are required' });
+    }
+
+    const result = await authService.resetPassword(token, password);
+
+    res.status(200).json({
+      message: 'Password reset successful',
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
