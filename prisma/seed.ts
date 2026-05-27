@@ -87,6 +87,52 @@ async function main() {
     });
   }
 
+  // 4. Seed Audit Logs
+  console.log('Seeding mock audit logs...');
+  const seededAdmin = await prisma.user.findUnique({ where: { email: 'admin@thryv.com' } });
+  const seededManager = await prisma.user.findUnique({ where: { email: 'manager@thryv.com' } });
+  
+  if (seededAdmin && seededManager) {
+    const mockLogs = [
+      {
+        user_id: seededAdmin.id,
+        action: 'USER_LOGIN_SUCCESS',
+        entity: 'User',
+        entity_id: seededAdmin.id,
+        details: { email: 'admin@thryv.com' },
+        ip_address: '127.0.0.1',
+        created_at: new Date(Date.now() - 3600000 * 2), // 2 hours ago
+      },
+      {
+        user_id: seededAdmin.id,
+        action: 'USER_INVITATION_SUCCESS',
+        entity: 'Invitation',
+        entity_id: 1,
+        details: { email: 'designer-invite@thryv.com', role_id: roleMap['DESIGNER'] },
+        ip_address: '127.0.0.1',
+        created_at: new Date(Date.now() - 3600000 * 1.5), // 1.5 hours ago
+      },
+      {
+        user_id: seededManager.id,
+        action: 'USER_LOGIN_SUCCESS',
+        entity: 'User',
+        entity_id: seededManager.id,
+        details: { email: 'manager@thryv.com' },
+        ip_address: '127.0.0.1',
+        created_at: new Date(Date.now() - 3600000 * 1), // 1 hour ago
+      },
+    ];
+
+    // Clear any old audit logs first to prevent duplicate build seed bloat
+    await prisma.auditLog.deleteMany({});
+    
+    for (const log of mockLogs) {
+      await prisma.auditLog.create({
+        data: log,
+      });
+    }
+  }
+
   console.log('Seeding completed successfully!');
 }
 
