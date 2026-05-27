@@ -22,13 +22,14 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email, password, name, role_id } = req.body;
+    console.log('Register request body:', req.body);
+    const { email, password, name, role_id, inviteToken } = req.body;
 
     if (!email || !password || !name) {
       return res.status(400).json({ message: 'Email, password and name are required' });
     }
 
-    const result = await authService.register({ email, password, name, role_id });
+    const result = await authService.register({ email, password, name, role_id, inviteToken });
 
     res.status(201).json({
       message: 'User registered successfully',

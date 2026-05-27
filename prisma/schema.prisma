@@ -14,9 +14,26 @@ model UserRole {
   name       String   @unique
   created_at DateTime @default(now())
 
-  users User[]
+  users       User[]
+  invitations Invitation[]
 
   @@map("user_roles")
+}
+
+model Invitation {
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  token      String   @unique
+  role_id    Int
+  role       UserRole @relation(fields: [role_id], references: [id])
+  expires_at DateTime
+  is_used    Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([token])
+  @@index([email])
+  @@map("invitations")
 }
 
 model TaskStatus {

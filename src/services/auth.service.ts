@@ -52,8 +52,21 @@ export const login = async (email: string, password: string) => {
   return { user: userWithoutPassword, tokens };
 };
 
+import * as invitationService from './invitation.service';
+
 export const register = async (userData: any) => {
-  const { email, password, name, role_id } = userData;
+  const { email, password, name, inviteToken } = userData;
+
+  if (!inviteToken) {
+    throw new Error('An invitation token is required to register');
+  }
+
+  // Validate the invitation
+  const invitation = await invitationService.validateInvitation(inviteToken);
+  
+  if (invitation.email !== email) {
+    throw new Error('This invitation was issued for a different email address');
+  }
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
@@ -62,15 +75,19 @@ export const register = async (userData: any) => {
 
   const hashedPasswordStr = await hashPassword(password);
 
+  // Create user with the role pre-assigned in the invitation
   const user = await prisma.user.create({
     data: {
       email,
       password: hashedPasswordStr,
       name,
-      role_id: role_id || 2, // Default to MANAGER if not provided
+      role_id: invitation.role_id,
     },
     include: { role: true },
   });
+
+  // Mark invitation as used
+  await invitationService.markInvitationAsUsed(inviteToken);
 
   const tokens = generateTokens(user);
   const { password: _, ...userWithoutPassword } = user;
