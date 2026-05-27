@@ -6,5 +6,181 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-  
-// Models will be added in the database schema sprint
+
+// ==================== LOOKUP TABLES ====================
+
+model UserRole {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  created_at DateTime @default(now())
+
+  users User[]
+
+  @@map("user_roles")
+}
+
+model TaskStatus {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  created_at DateTime @default(now())
+
+  tasks Task[]
+
+  @@map("task_statuses")
+}
+
+// ==================== MAIN TABLES ====================
+
+model User {
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  password   String
+  name       String
+  role_id    Int
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  role            UserRole @relation(fields: [role_id], references: [id])
+  managed_clients Client[] @relation("ClientManager")
+  assigned_tasks  Task[]   @relation("TaskDesigner")
+  created_tasks   Task[]   @relation("TaskCreator")
+  comments        Comment[]
+  uploads         Attachment[]
+
+  // Indexes
+  @@index([role_id])
+  @@index([email])
+  @@index([is_active])
+  @@map("users")
+}
+
+model Client {
+  id            Int      @id @default(autoincrement())
+  name          String
+  brand_details Json?
+  active_month  DateTime
+  manager_id    Int
+  is_active     Boolean  @default(true)
+  timezone      String   @default("UTC")
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // Relations
+  manager          User            @relation("ClientManager", fields: [manager_id], references: [id])
+  packages         Package[]
+  calendar_entries CalendarEntry[]
+  uploads          Attachment[]
+
+  // Indexes
+  @@index([manager_id])
+  @@index([active_month])
+  @@index([is_active])
+  @@map("clients")
+}
+
+model Package {
+  id          Int      @id @default(autoincrement())
+  client_id   Int
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  month       DateTime
+  created_at  DateTime @default(now())
+
+  // Relations
+  client Client @relation(fields: [client_id], references: [id])
+
+  // Indexes
+  @@index([client_id])
+  @@index([month])
+  @@map("packages")
+}
+
+model CalendarEntry {
+  id          Int      @id @default(autoincrement())
+  client_id   Int
+  date        DateTime
+  title       String
+  description String?
+  created_at  DateTime @default(now())
+
+  // Relations
+  client Client @relation(fields: [client_id], references: [id])
+  task   Task?
+
+  // Indexes
+  @@index([client_id])
+  @@index([date])
+  @@map("calendar_entries")
+}
+
+model Task {
+  id                    Int      @id @default(autoincrement())
+  calendar_entry_id     Int?     @unique
+  title                 String
+  status_id             Int
+  priority              Int      @default(2)
+  designer_due_date     DateTime
+  publish_date          DateTime
+  assigned_designer_id  Int?
+  created_by_manager_id Int
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  // Relations
+  calendar_entry     CalendarEntry? @relation(fields: [calendar_entry_id], references: [id])
+  status             TaskStatus     @relation(fields: [status_id], references: [id])
+  assigned_designer  User?          @relation("TaskDesigner", fields: [assigned_designer_id], references: [id])
+  created_by_manager User           @relation("TaskCreator", fields: [created_by_manager_id], references: [id])
+  comments           Comment[]
+  uploads            Attachment[]
+
+  // Indexes
+  @@index([assigned_designer_id])
+  @@index([status_id])
+  @@index([publish_date])
+  @@index([priority])
+  @@map("tasks")
+}
+
+model Comment {
+  id         Int      @id @default(autoincrement())
+  content    String
+  task_id    Int
+  author_id  Int
+  created_at DateTime @default(now())
+
+  // Relations
+  task   Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  author User @relation(fields: [author_id], references: [id])
+
+  // Indexes
+  @@index([task_id])
+  @@index([author_id])
+  @@map("comments")
+}
+
+model Attachment {
+  id          Int      @id @default(autoincrement())
+  file_name   String
+  file_url    String
+  file_type   String
+  file_size   Int
+  task_id     Int?
+  client_id   Int?
+  uploaded_by Int
+  created_at  DateTime @default(now())
+
+  // Relations
+  task  Task?   @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  client Client? @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [uploaded_by], references: [id])
+
+  // Indexes
+  @@index([task_id])
+  @@index([client_id])
+  @@index([uploaded_by])
+  @@map("attachments")
+}
