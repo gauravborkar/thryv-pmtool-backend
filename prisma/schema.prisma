@@ -224,3 +224,59 @@ model AuditLog {
   @@index([created_at])
   @@map("audit_logs")
 }
+
+// ------------------- Package Builder Data Model -------------------
+// Platform on which packages are built
+model Platform {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  packageBuilders PackageBuilder[]
+
+  @@map("platforms")
+}
+
+// Cycle (e.g., monthly, quarterly) for which quantities are tracked
+model Cycle {
+  id          Int      @id @default(autoincrement())
+  label       String?  // optional descriptive label
+  start_date  DateTime
+  end_date    DateTime
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  packageBuilders PackageBuilder[]
+
+  @@map("cycles")
+}
+
+// Types of posts that can be part of a package
+enum PostType {
+  TEXT
+  IMAGE
+  VIDEO
+  // Extend with additional types as needed
+}
+
+// Stores the quantity of each post type per platform per cycle
+model PackageBuilder {
+  id           Int      @id @default(autoincrement())
+  platform_id  Int
+  cycle_id     Int
+  post_type    PostType
+  quantity     Int      @default(0)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  // Relations
+  platform Platform @relation(fields: [platform_id], references: [id])
+  cycle    Cycle    @relation(fields: [cycle_id], references: [id])
+
+  // Ensure a unique record for each combination
+  @@unique([platform_id, cycle_id, post_type])
+  @@map("package_builders")
+}

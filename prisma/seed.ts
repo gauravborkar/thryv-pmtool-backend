@@ -48,12 +48,13 @@ async function main() {
   // 3. Seed Users
   console.log('Seeding users...');
   const hashedPassword = await bcrypt.hash('password123', 10);
+const adminHashedPassword = await bcrypt.hash('Admin1234!', 10);
 
   const users = [
     {
       email: 'admin@thryv.com',
       name: 'Thryv Admin',
-      password: hashedPassword,
+      password: adminHashedPassword,
       role_id: roleMap['ADMIN'],
     },
     {
