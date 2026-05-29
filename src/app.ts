@@ -25,6 +25,7 @@ import taskRoutes from './routes/task.routes'
 import calendarRoutes from './routes/calendar.routes'
 import invitationRoutes from './routes/invitation.routes'
 import auditRoutes from './routes/audit.routes'
+import packageRoutes from './routes/package.routes'
 
 app.use('/auth', authRoutes)
 app.use('/users', userRoutes)
@@ -33,6 +34,7 @@ app.use('/tasks', taskRoutes)
 app.use('/calendar', calendarRoutes)
 app.use('/invitations', invitationRoutes)
 app.use('/audit', auditRoutes)
+app.use('/packages', packageRoutes)
 
 export default app
 

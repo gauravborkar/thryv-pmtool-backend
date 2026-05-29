@@ -46,6 +46,36 @@ model TaskStatus {
   @@map("task_statuses")
 }
 
+model ContentType {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  created_at DateTime @default(now())
+
+  line_items ContentPackageLineItem[]
+
+  @@map("content_types")
+}
+
+model BillingCycle {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  created_at DateTime @default(now())
+
+  line_items ContentPackageLineItem[]
+
+  @@map("billing_cycles")
+}
+
+model SocialPlatform {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  created_at DateTime @default(now())
+
+  line_items ContentPackageLineItem[]
+
+  @@map("social_platforms")
+}
+
 // ==================== MAIN TABLES ====================
 
 model User {
@@ -67,7 +97,8 @@ model User {
   created_tasks   Task[]   @relation("TaskCreator")
   comments        Comment[]
   uploads         Attachment[]
-  audit_logs      AuditLog[]
+  audit_logs         AuditLog[]
+  content_packages   ContentPackage[]
 
 
   // Indexes
@@ -117,6 +148,44 @@ model Package {
   @@index([client_id])
   @@index([month])
   @@map("packages")
+}
+
+model ContentPackage {
+  id            String   @id @default(uuid())
+  name          String
+  description   String?
+  created_by_id Int
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  created_by User                     @relation(fields: [created_by_id], references: [id])
+  line_items ContentPackageLineItem[]
+
+  @@index([created_by_id])
+  @@index([created_at])
+  @@map("content_packages")
+}
+
+model ContentPackageLineItem {
+  id               String   @id @default(uuid())
+  package_id       String
+  content_type_id  Int
+  platform_id      Int
+  billing_cycle_id Int
+  quantity         Int      @default(1)
+  notes            String?
+  created_at       DateTime @default(now())
+
+  package       ContentPackage @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  content_type  ContentType    @relation(fields: [content_type_id], references: [id])
+  platform      SocialPlatform @relation(fields: [platform_id], references: [id])
+  billing_cycle BillingCycle   @relation(fields: [billing_cycle_id], references: [id])
+
+  @@index([package_id])
+  @@index([content_type_id])
+  @@index([platform_id])
+  @@index([billing_cycle_id])
+  @@map("content_package_line_items")
 }
 
 model CalendarEntry {
