@@ -41,11 +41,57 @@ async function main() {
     });
   }
 
+  // 3. Seed Package Builder lookups
+  console.log('Seeding package builder lookups...');
+  const contentTypes = [
+    { name: 'REEL' },
+    { name: 'CAROUSEL' },
+    { name: 'STATIC' },
+    { name: 'STORY' },
+  ];
+  const billingCycles = [
+    { name: 'WEEKLY' },
+    { name: 'MONTHLY' },
+    { name: 'QUARTERLY' },
+  ];
+  const socialPlatforms = [
+    { name: 'Instagram' },
+    { name: 'Facebook' },
+    { name: 'TikTok' },
+    { name: 'LinkedIn' },
+    { name: 'YouTube' },
+    { name: 'Twitter/X' },
+  ];
+
+  for (const type of contentTypes) {
+    await prisma.contentType.upsert({
+      where: { name: type.name },
+      update: {},
+      create: type,
+    });
+  }
+
+  for (const cycle of billingCycles) {
+    await prisma.billingCycle.upsert({
+      where: { name: cycle.name },
+      update: {},
+      create: cycle,
+    });
+  }
+
+  for (const platform of socialPlatforms) {
+    await prisma.socialPlatform.upsert({
+      where: { name: platform.name },
+      update: {},
+      create: platform,
+    });
+  }
+
   // Get roles for user creation
   const allRoles = await prisma.userRole.findMany();
   const roleMap = Object.fromEntries(allRoles.map((r) => [r.name, r.id]));
 
-  // 3. Seed Users
+  // 4. Seed Users
   console.log('Seeding users...');
   const hashedPassword = await bcrypt.hash('password123', 10);
 
@@ -87,7 +133,7 @@ async function main() {
     });
   }
 
-  // 4. Seed Audit Logs
+  // 5. Seed Audit Logs
   console.log('Seeding mock audit logs...');
   const seededAdmin = await prisma.user.findUnique({ where: { email: 'admin@thryv.com' } });
   const seededManager = await prisma.user.findUnique({ where: { email: 'manager@thryv.com' } });
