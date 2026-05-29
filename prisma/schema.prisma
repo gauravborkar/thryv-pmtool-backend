@@ -51,7 +51,8 @@ model ContentType {
   name       String   @unique
   created_at DateTime @default(now())
 
-  line_items ContentPackageLineItem[]
+  line_items         ContentPackageLineItem[]
+  version_line_items ContentPackageVersionLineItem[]
 
   @@map("content_types")
 }
@@ -61,7 +62,8 @@ model BillingCycle {
   name       String   @unique
   created_at DateTime @default(now())
 
-  line_items ContentPackageLineItem[]
+  line_items         ContentPackageLineItem[]
+  version_line_items ContentPackageVersionLineItem[]
 
   @@map("billing_cycles")
 }
@@ -71,7 +73,8 @@ model SocialPlatform {
   name       String   @unique
   created_at DateTime @default(now())
 
-  line_items ContentPackageLineItem[]
+  line_items         ContentPackageLineItem[]
+  version_line_items ContentPackageVersionLineItem[]
 
   @@map("social_platforms")
 }
@@ -98,7 +101,8 @@ model User {
   comments        Comment[]
   uploads         Attachment[]
   audit_logs         AuditLog[]
-  content_packages   ContentPackage[]
+  content_packages         ContentPackage[]
+  content_package_versions ContentPackageVersion[] @relation("PackageVersionEditor")
 
 
   // Indexes
@@ -151,15 +155,17 @@ model Package {
 }
 
 model ContentPackage {
-  id            String   @id @default(uuid())
-  name          String
-  description   String?
-  created_by_id Int
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  created_by_id   Int
+  current_version Int      @default(1)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
 
   created_by User                     @relation(fields: [created_by_id], references: [id])
   line_items ContentPackageLineItem[]
+  versions   ContentPackageVersion[]
 
   @@index([created_by_id])
   @@index([created_at])
@@ -167,14 +173,15 @@ model ContentPackage {
 }
 
 model ContentPackageLineItem {
-  id               String   @id @default(uuid())
-  package_id       String
-  content_type_id  Int
-  platform_id      Int
-  billing_cycle_id Int
-  quantity         Int      @default(1)
-  notes            String?
-  created_at       DateTime @default(now())
+  id                                String   @id @default(uuid())
+  package_id                        String
+  content_type_id                   Int
+  platform_id                       Int
+  billing_cycle_id                  Int
+  quantity                          Int      @default(1)
+  notes                             String?
+  eligible_for_partial_regeneration Boolean  @default(false)
+  created_at                        DateTime @default(now())
 
   package       ContentPackage @relation(fields: [package_id], references: [id], onDelete: Cascade)
   content_type  ContentType    @relation(fields: [content_type_id], references: [id])
@@ -186,6 +193,48 @@ model ContentPackageLineItem {
   @@index([platform_id])
   @@index([billing_cycle_id])
   @@map("content_package_line_items")
+}
+
+model ContentPackageVersion {
+  id              String   @id @default(uuid())
+  package_id      String
+  version_number  Int
+  name            String
+  description     String?
+  change_type     String
+  change_summary  Json?
+  edited_by_id    Int
+  created_at      DateTime @default(now())
+
+  package    ContentPackage                  @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  edited_by  User                            @relation("PackageVersionEditor", fields: [edited_by_id], references: [id])
+  line_items ContentPackageVersionLineItem[]
+
+  @@unique([package_id, version_number])
+  @@index([package_id])
+  @@index([created_at])
+  @@map("content_package_versions")
+}
+
+model ContentPackageVersionLineItem {
+  id                                String  @id @default(uuid())
+  version_id                        String
+  source_line_item_id               String?
+  content_type_id                   Int
+  platform_id                       Int
+  billing_cycle_id                  Int
+  quantity                          Int
+  notes                             String?
+  change_kind                       String
+  eligible_for_partial_regeneration Boolean @default(false)
+
+  version       ContentPackageVersion @relation(fields: [version_id], references: [id], onDelete: Cascade)
+  content_type  ContentType           @relation(fields: [content_type_id], references: [id])
+  platform      SocialPlatform        @relation(fields: [platform_id], references: [id])
+  billing_cycle BillingCycle          @relation(fields: [billing_cycle_id], references: [id])
+
+  @@index([version_id])
+  @@map("content_package_version_line_items")
 }
 
 model CalendarEntry {
