@@ -96,7 +96,7 @@ export const updatePackage = async (req: AuthRequest, res: Response, _next: Next
   const { id } = req.params;
 
   try {
-    const pkg = await packageService.updateContentPackage(id, req.body);
+    const pkg = await packageService.updateContentPackage(id, req.body, user);
 
     await logAction({
       userId: user.id,
@@ -121,6 +121,39 @@ export const updatePackage = async (req: AuthRequest, res: Response, _next: Next
       ipAddress: req.ip,
     });
 
+    res.status(getErrorStatus(error)).json({ message });
+  }
+};
+
+export const getPackageHistory = async (req: AuthRequest, res: Response, _next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const history = await packageService.getPackageHistory(id);
+    res.status(200).json({
+      message: 'Package history retrieved successfully',
+      data: history,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    res.status(getErrorStatus(error)).json({ message });
+  }
+};
+
+export const getPackageVersion = async (req: AuthRequest, res: Response, _next: NextFunction) => {
+  try {
+    const { id, versionNumber } = req.params;
+    const version = parseInt(versionNumber, 10);
+    if (isNaN(version) || version < 1) {
+      return res.status(400).json({ message: 'Invalid version number' });
+    }
+
+    const data = await packageService.getPackageVersion(id, version);
+    res.status(200).json({
+      message: 'Package version retrieved successfully',
+      data,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
     res.status(getErrorStatus(error)).json({ message });
   }
 };

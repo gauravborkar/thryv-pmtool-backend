@@ -13,6 +13,20 @@ router.get(
 
 router.get('/', authenticate, authorize(['ADMIN', 'MANAGER']), packageController.getPackages);
 
+router.get(
+  '/:id/history/:versionNumber',
+  authenticate,
+  authorize(['ADMIN', 'MANAGER']),
+  packageController.getPackageVersion
+);
+
+router.get(
+  '/:id/history',
+  authenticate,
+  authorize(['ADMIN', 'MANAGER']),
+  packageController.getPackageHistory
+);
+
 router.get('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), packageController.getPackageById);
 
 router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), packageController.createPackage);
