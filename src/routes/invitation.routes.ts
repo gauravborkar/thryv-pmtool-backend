@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { sendInvitationEmail } from '../services/email.service';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import * as invitationService from '../services/invitation.service';
 import { logAction } from '../services/audit.service';
@@ -29,7 +30,21 @@ router.post('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
       ipAddress: req.ip,
     });
 
-    // In a real app, you would send an email here.
+    // Send invitation email
+    try {
+      await sendInvitationEmail(email, invitation.token);
+    } catch (mailError) {
+      // Log email sending failure but do not block response
+      await logAction({
+        userId: req.user.id,
+        action: 'USER_INVITATION_EMAIL_FAILURE',
+        entity: 'Invitation',
+        entityId: invitation.id,
+        details: { email, error: (mailError as any).message },
+        ipAddress: req.ip,
+      });
+    }
+
     res.status(201).json({ 
       message: 'Invitation created successfully',
       data: {
