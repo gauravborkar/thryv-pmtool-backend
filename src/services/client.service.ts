@@ -18,6 +18,16 @@ export interface UpdateClientInput {
 }
 
 /**
+ * Helper to enforce that a manager can only access their own client.
+ * Throws an error if the user is a manager and does not own the client.
+ */
+function enforceOwnership(client: { manager_id: number }, user: { id: number; role: string }) {
+  if (user.role === 'MANAGER' && client.manager_id !== user.id) {
+    throw new Error('Forbidden: You do not have permission to access this client profile');
+  }
+}
+
+/**
  * Lists clients based on user role.
  * - ADMIN: Can see all clients.
  * - MANAGER: Can only see clients they manage.
@@ -71,10 +81,8 @@ export const getClientById = async (id: number, user: { id: number; role: string
     throw new Error('Client not found');
   }
 
-  // Ownership check: Managers can only read their own clients
-  if (user.role === 'MANAGER' && client.manager_id !== user.id) {
-    throw new Error('Forbidden: You do not have permission to access this client profile');
-  }
+  // Use helper for ownership enforcement
+  enforceOwnership(client, user);
 
   return client;
 };
@@ -143,10 +151,8 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
     throw new Error('Client not found');
   }
 
-  // Ownership check
-  if (user.role === 'MANAGER' && client.manager_id !== user.id) {
-    throw new Error('Forbidden: You do not have permission to update this client profile');
-  }
+  // Use helper for ownership enforcement
+  enforceOwnership(client, user);
 
   const updateData: any = { ...data };
   delete updateData.id;
@@ -203,10 +209,8 @@ export const archiveClient = async (id: number, user: { id: number; role: string
     throw new Error('Client not found');
   }
 
-  // Ownership check
-  if (user.role === 'MANAGER' && client.manager_id !== user.id) {
-    throw new Error('Forbidden: You do not have permission to archive this client profile');
-  }
+  // Use helper for ownership enforcement
+  enforceOwnership(client, user);
 
   return prisma.client.update({
     where: { id },

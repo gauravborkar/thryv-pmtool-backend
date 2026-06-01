@@ -561,64 +561,67 @@ export const createContentPackage = async (
   const lineDiff = resolvedItems.map((item) => ({
     item: normalizeLineItem(item),
     changeKind: 'ADDED' as LineChangeKind,
-    eligible: item.eligible_for_partial_regeneration || true,
+    eligible: item.eligible_for_partial_regeneration ?? true,
   }));
   const changeSummary = buildChangeSummary(false, lineDiff);
 
-  const pkg = await prisma.$transaction(async (tx) => {
-    const created = await tx.contentPackage.create({
-      data: {
-        name,
-        description: normalizeNotes(data.description) || null,
-        created_by_id: user.id,
-        current_version: 1,
-        line_items: {
-          create: resolvedItems.map((item) => ({
-            content_type_id: item.content_type_id,
-            platform_id: item.platform_id,
-            billing_cycle_id: item.billing_cycle_id,
-            quantity: item.quantity,
-            notes: item.notes,
-            eligible_for_partial_regeneration: true,
-          })),
-        },
-      },
-      include: packageInclude,
-    });
-
-    const persistedItems = await tx.contentPackageLineItem.findMany({
-      where: { package_id: created.id },
-      include: { content_type: true, platform: true, billing_cycle: true },
-    });
-
-    await createVersionSnapshot(
-      {
-        packageId: created.id,
-        versionNumber: 1,
-        name: created.name,
-        description: created.description,
-        changeType: 'CREATED',
-        changeSummary,
-        editedById: user.id,
-        lineSnapshots: persistedItems.map((item) => ({
-          sourceLineItemId: item.id,
-          contentTypeId: item.content_type_id,
-          platformId: item.platform_id,
-          billingCycleId: item.billing_cycle_id,
+  // First transaction: create the package and its line items
+  const createdPkg = await prisma.contentPackage.create({
+    data: {
+      name,
+      description: normalizeNotes(data.description) || null,
+      created_by_id: user.id,
+      current_version: 1,
+      line_items: {
+        create: resolvedItems.map((item) => ({
+          content_type_id: item.content_type_id,
+          platform_id: item.platform_id,
+          billing_cycle_id: item.billing_cycle_id,
           quantity: item.quantity,
           notes: item.notes,
-          changeKind: 'ADDED',
-          eligibleForPartialRegeneration: true,
+          eligible_for_partial_regeneration: true,
         })),
       },
-      tx
-    );
-
-    return created;
+    },
+    include: packageInclude,
   });
 
-  return formatContentPackage(pkg);
+const persistedItems = await prisma.contentPackageLineItem.findMany({
+  where: { package_id: createdPkg.id },
+  include: { content_type: true, platform: true, billing_cycle: true },
+});
+
+const created = { pkg: createdPkg, persistedItems };
+
+  // Create version snapshot outside of the long transaction
+  await createVersionSnapshot(
+    {
+      packageId: created.pkg.id,
+      versionNumber: 1,
+      name: created.pkg.name,
+      description: created.pkg.description,
+      changeType: 'CREATED',
+      changeSummary,
+      editedById: user.id,
+      lineSnapshots: created.persistedItems.map((item) => ({
+        sourceLineItemId: item.id,
+        contentTypeId: item.content_type_id,
+        platformId: item.platform_id,
+        billingCycleId: item.billing_cycle_id,
+        quantity: item.quantity,
+        notes: item.notes,
+        changeKind: 'ADDED',
+        eligibleForPartialRegeneration: true,
+      })),
+    },
+    prisma
+  );
+
+  return formatContentPackage(created.pkg);
 };
+
+
+
 
 export const updateContentPackage = async (
   id: string,
