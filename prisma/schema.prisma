@@ -165,7 +165,9 @@ model ContentPackage {
 
   created_by User                     @relation(fields: [created_by_id], references: [id])
   line_items ContentPackageLineItem[]
+  scheduledPosts ScheduledPost[]
   versions   ContentPackageVersion[]
+  distributionRule DistributionRule?
 
   @@index([created_by_id])
   @@index([created_at])
@@ -341,4 +343,45 @@ model AuditLog {
   @@index([action])
   @@index([created_at])
   @@map("audit_logs")
+}
+
+// ==================== DISTRIBUTION RULES ====================
+
+model DistributionRule {
+  id                       Int      @id @default(autoincrement())
+  package_id               String   @unique
+  formatSequence           Json     // array of format identifiers
+  peakDays                 Json     // array of ISO weekday numbers (1-7)
+  maxConsecutiveSameFormat Int      @default(1)
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  // Relations
+  package        ContentPackage @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  scheduledPosts ScheduledPost[]
+}
+
+model ScheduledPost {
+  id            Int      @id @default(autoincrement())
+  package_id    String
+  scheduled_at  DateTime
+  format        String
+  created_at    DateTime @default(now())
+
+  package ContentPackage @relation(fields: [package_id], references: [id])
+  rule    DistributionRule? @relation(fields: [ruleId], references: [id])
+  ruleId  Int?
+
+  @@index([package_id])
+  @@index([scheduled_at])
+}
+
+model BlackoutDate {
+  id          Int      @id @default(autoincrement())
+  date        DateTime @unique
+  reason      String?
+  created_at  DateTime @default(now())
+  
+  @@index([date])
+  @@map("blackout_dates")
 }
