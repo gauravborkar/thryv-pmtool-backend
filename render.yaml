@@ -13,7 +13,7 @@ services:
     name: thryv-pmtool-api
     runtime: node
     plan: free
-    buildCommand: npm ci --ignore-scripts && npx prisma generate && npm run build
+    buildCommand: npm ci --ignore-scripts --include=dev && npx prisma generate && npm run build
     startCommand: npx prisma migrate deploy && npm start
     healthCheckPath: /health
     envVars:
