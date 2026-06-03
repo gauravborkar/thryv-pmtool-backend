@@ -24,8 +24,15 @@ import clientRoutes from './routes/client.routes'
 import taskRoutes from './routes/task.routes'
 import calendarRoutes from './routes/calendar.routes'
 import invitationRoutes from './routes/invitation.routes'
-import auditRoutes from './routes/audit.routes'
-import packageRoutes from './routes/package.routes'
+import auditRoutes from './routes/audit.routes';
+import packageRoutes from './routes/package.routes';
+import { getDistributionRule, upsertDistributionRule, scheduleDistribution } from './controllers/distribution.controller';
+
+// Distribution endpoints
++app.get('/distribution/:projectId', getDistributionRule);
++app.post('/distribution/:projectId', upsertDistributionRule);
++app.post('/distribution/:projectId/schedule', scheduleDistribution);
+
 
 app.use('/auth', authRoutes)
 app.use('/users', userRoutes)
