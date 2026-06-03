@@ -36,4 +36,18 @@ router.get('/me', authenticate, async (req: any, res) => {
   }
 });
 
+// GET /users/designers (Admin/Manager)
+router.get('/designers', authenticate, authorize(['ADMIN', 'MANAGER']), async (_req: any, res) => {
+  try {
+    const designers = await prisma.user.findMany({
+      where: { role: { name: 'DESIGNER' }, is_active: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' },
+    });
+    res.json({ data: designers });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 export default router;
