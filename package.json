@@ -1,6 +1,7 @@
 {
   "name": "thryv-pmtool-backend",
   "version": "0.0.1",
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -31,7 +32,9 @@
     "@types/jsonwebtoken": "^9.0.0",
     "@types/node": "^20.0.0",
     "@types/nodemailer": "^8.0.0",
-    "eslint": "^9",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0"
   }
