@@ -6,7 +6,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "prepare": "husky"
   },
   "prisma": {
@@ -32,10 +33,12 @@
     "@types/jsonwebtoken": "^9.0.0",
     "@types/node": "^20.0.0",
     "@types/nodemailer": "^8.0.0",
-    "eslint": "^8.56.0",
-    "@typescript-eslint/parser": "^8.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^8.56.0",
+    "husky": "^9.1.7",
     "tsx": "^4.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.60.1"
   }
 }

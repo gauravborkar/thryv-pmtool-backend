@@ -248,12 +248,13 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, man
     include: includeTaskRelations(),
   });
 
-  if (existing.calendar_entry_id && (payload.brief || payload.postSpecs || payload.title)) {
+  if (existing.calendar_entry_id) {
     await prisma.calendarEntry.update({
       where: { id: existing.calendar_entry_id },
       data: {
         title: payload.title ?? undefined,
         description: [payload.brief, payload.postSpecs].filter(Boolean).join('\n\n') || undefined,
+        date: payload.publishDate ? new Date(payload.publishDate) : undefined,
       },
     });
   }
