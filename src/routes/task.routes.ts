@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import * as taskController from '../controllers/task.controller';
+import { upload } from '../middleware/upload.middleware';
 
 const router = Router();
 
@@ -36,6 +37,12 @@ router.patch('/:id/assign', authenticate, authorize(['ADMIN', 'MANAGER']), taskC
 router.post('/:id/comments', authenticate, taskController.addTaskComment);
 router.patch('/:id/comments/:commentId', authenticate, taskController.updateTaskComment);
 router.delete('/:id/comments/:commentId', authenticate, taskController.deleteTaskComment);
+
+// Media / Attachments
+router.post('/:id/media', authenticate, upload.single('file'), taskController.addTaskAttachment);
+router.delete('/:id/media/:attachmentId', authenticate, taskController.deleteTaskAttachment);
+
 router.delete('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), taskController.deleteTask);
 
 export default router;
+

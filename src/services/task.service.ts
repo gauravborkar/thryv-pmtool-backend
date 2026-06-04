@@ -1,6 +1,8 @@
 import { Prisma, Task } from '@prisma/client';
 import { addDays } from 'date-fns';
 import prisma from '../lib/prisma';
+import path from 'path';
+import fs from 'fs';
 
 const STATUS_FLOW = [
   'NOT_STARTED',
@@ -383,3 +385,76 @@ export async function deleteTask(taskId: number) {
   await prisma.task.delete({ where: { id: taskId } });
   return { id: taskId };
 }
+
+export async function addTaskAttachment(
+  taskId: number,
+  userId: number,
+  payload: {
+    fileName: string;
+    fileUrl: string;
+    fileType: string;
+    fileSize: number;
+  }
+) {
+  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  if (!task) throw new Error('Task not found');
+
+  const attachment = await prisma.attachment.create({
+    data: {
+      file_name: payload.fileName,
+      file_url: payload.fileUrl,
+      file_type: payload.fileType,
+      file_size: payload.fileSize,
+      task_id: taskId,
+      uploaded_by: userId,
+    },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+    },
+  });
+
+  return {
+    id: attachment.id,
+    fileName: attachment.file_name,
+    fileUrl: attachment.file_url,
+    fileType: attachment.file_type,
+    fileSize: attachment.file_size,
+    createdAt: attachment.created_at,
+    uploadedBy: attachment.user,
+  };
+}
+
+export async function deleteTaskAttachment(
+  taskId: number,
+  attachmentId: number,
+  userId: number,
+  role: string
+) {
+  const attachment = await prisma.attachment.findUnique({
+    where: { id: attachmentId },
+  });
+  if (!attachment || attachment.task_id !== taskId) {
+    throw new Error('Attachment not found');
+  }
+
+  // Auth check: Admin/Manager or the owner who uploaded it
+  const isOwner = attachment.uploaded_by === userId;
+  const isAdminOrManager = ['ADMIN', 'MANAGER'].includes(role);
+  if (!isOwner && !isAdminOrManager) {
+    throw new Error('Forbidden: You do not have permission to delete this attachment');
+  }
+
+  // Delete physical file
+  const filePath = path.join(process.cwd(), 'uploads', path.basename(attachment.file_url));
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch (err) {
+    console.error('Failed to delete physical file:', err);
+  }
+
+  await prisma.attachment.delete({ where: { id: attachmentId } });
+  return { id: attachmentId };
+}
+
