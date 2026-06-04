@@ -112,4 +112,60 @@ router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res)
   }
 });
 
+/**
+ * @route PATCH /calendar/:id
+ * @desc Update calendar entry and sync linked task dates (Manager/Admin only)
+ * @access Private (Admin, Manager)
+ */
+router.patch('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ message: 'Invalid calendar entry ID' });
+    }
+
+    const { date, title, description } = req.body;
+
+    const existing = await prisma.calendarEntry.findUnique({
+      where: { id },
+      include: { task: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Calendar entry not found' });
+    }
+
+    const updatedDate = date ? parseISO(String(date)) : existing.date;
+
+    const updatedEntry = await prisma.calendarEntry.update({
+      where: { id },
+      data: {
+        date: updatedDate,
+        title: title ? String(title) : undefined,
+        description: description !== undefined ? (description ? String(description) : null) : undefined,
+      },
+      include: { task: true },
+    });
+
+    if (existing.task) {
+      const designerDueDate = addDays(updatedDate, -2);
+      await prisma.task.update({
+        where: { id: existing.task.id },
+        data: {
+          publish_date: updatedDate,
+          designer_due_date: designerDueDate,
+          title: title ? String(title) : undefined,
+        },
+      });
+    }
+
+    res.status(200).json({
+      message: 'Calendar entry updated and linked task dates synced successfully',
+      data: updatedEntry,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Failed to update calendar entry' });
+  }
+});
+
 export default router;
