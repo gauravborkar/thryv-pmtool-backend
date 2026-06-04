@@ -26,12 +26,15 @@ import calendarRoutes from './routes/calendar.routes'
 import invitationRoutes from './routes/invitation.routes'
 import auditRoutes from './routes/audit.routes';
 import packageRoutes from './routes/package.routes';
-import { getDistributionRule, upsertDistributionRule, scheduleDistribution } from './controllers/distribution.controller';
+import { getDistributionRule, upsertDistributionRule, scheduleDistribution, getScheduledPosts, lockPost, unlockPost } from './controllers/distribution.controller';
 
 // Distribution endpoints
-+app.get('/distribution/:projectId', getDistributionRule);
-+app.post('/distribution/:projectId', upsertDistributionRule);
-+app.post('/distribution/:projectId/schedule', scheduleDistribution);
+app.get('/distribution/:projectId', getDistributionRule);
+app.post('/distribution/:projectId', upsertDistributionRule);
+app.post('/distribution/:projectId/schedule', scheduleDistribution);
+app.get('/distribution/:projectId/posts', getScheduledPosts);
+app.patch('/distribution/posts/:postId/lock', lockPost);
+app.patch('/distribution/posts/:postId/unlock', unlockPost);
 
 
 app.use('/auth', authRoutes)
