@@ -1,42 +1,62 @@
 // src/services/email.service.ts
 import nodemailer from 'nodemailer';
 
-/**
- * Lazily initialize a Nodemailer transporter.
- * If SMTP env vars are provided, they are used.
- * Otherwise, an Ethereal test account is created (no real email sent).
- */
-const transporterPromise: Promise<nodemailer.Transporter> = (async () => {
-  if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+type Transporter = nodemailer.Transporter;
+
+let transporterPromise: Promise<Transporter | null> | null = null;
+
+const isSmtpConfigured = () =>
+  Boolean(process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS);
+
+const getTransporter = async (): Promise<Transporter | null> => {
+  if (!transporterPromise) {
+    transporterPromise = createTransporter();
+  }
+  return transporterPromise;
+};
+
+const createTransporter = async (): Promise<Transporter | null> => {
+  if (isSmtpConfigured()) {
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
       port: Number(process.env.EMAIL_PORT) || 587,
-      secure: process.env.EMAIL_SECURE === 'true', // true for 465, false otherwise
+      secure: process.env.EMAIL_SECURE === 'true',
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      connectionTimeout: 10_000,
     });
     console.log('📧 Using configured SMTP server');
-    await transporter.verify();
     return transporter;
   }
 
-  // Fallback to Ethereal (useful for local dev / CI)
-  const testAccount = await nodemailer.createTestAccount();
-  const transporter = nodemailer.createTransport({
-    host: testAccount.smtp.host,
-    port: testAccount.smtp.port,
-    secure: testAccount.smtp.secure,
-    auth: {
-      user: testAccount.user,
-      pass: testAccount.pass,
-    },
-  });
-  console.log('📧 Using Ethereal test account. Preview URL will be logged after sending.');
-  await transporter.verify();
-  return transporter;
-})();
+  if (process.env.NODE_ENV === 'production') {
+    console.warn(
+      '📧 Email not configured (set EMAIL_HOST, EMAIL_USER, EMAIL_PASS). Invitation emails will not be sent.',
+    );
+    return null;
+  }
+
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+    const transporter = nodemailer.createTransport({
+      host: testAccount.smtp.host,
+      port: testAccount.smtp.port,
+      secure: testAccount.smtp.secure,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+      connectionTimeout: 10_000,
+    });
+    console.log('📧 Using Ethereal test account. Preview URL will be logged after sending.');
+    return transporter;
+  } catch (err) {
+    console.warn('📧 Could not create Ethereal test account:', (err as Error).message);
+    return null;
+  }
+};
 
 /**
  * Generates a polished HTML email body for invitation emails.
@@ -74,6 +94,13 @@ const generateInvitationHtml = (invitationUrl: string) => `
  * Throws an error if the email could not be sent.
  */
 export const sendInvitationEmail = async (email: string, token: string) => {
+  const transporter = await getTransporter();
+  if (!transporter) {
+    throw new Error(
+      'Email is not configured. Set EMAIL_HOST, EMAIL_USER, and EMAIL_PASS on the server.',
+    );
+  }
+
   const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
   const invitationUrl = `${baseUrl}/register?token=${token}&email=${encodeURIComponent(email)}`;
 
@@ -85,10 +112,8 @@ export const sendInvitationEmail = async (email: string, token: string) => {
     text: `You have been invited to join the Thryv PM Tool.\n\nVisit the following link to accept the invitation:\n${invitationUrl}\n\nThe link expires in 7 days.`,
   };
 
-  const transporter = await transporterPromise;
   const info = await transporter.sendMail(mailOptions);
   console.log('📧 Invitation email sent (messageId=%s) to %s', info.messageId, email);
-  // If using Ethereal, output a preview URL for quick debugging
   const preview = nodemailer.getTestMessageUrl(info);
   if (preview) {
     console.log('🔍 Preview URL:', preview);

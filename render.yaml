@@ -1,0 +1,39 @@
+# Render Blueprint — Thryv PM Tool Backend
+# Deploy: Dashboard → New → Blueprint → connect this repo
+# Docs: https://render.com/docs/infrastructure-as-code
+
+databases:
+  - name: thryv-pmtool-db
+    plan: free
+    databaseName: thryv_pmtool
+    user: thryv_pmtool
+
+services:
+  - type: web
+    name: thryv-pmtool-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci --ignore-scripts --include=dev && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: thryv-pmtool-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: APP_BASE_URL
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
