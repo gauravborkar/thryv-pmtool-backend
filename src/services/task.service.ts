@@ -72,7 +72,11 @@ function includeTaskRelations() {
       include: { author: { select: { id: true, name: true, email: true } } },
       orderBy: { created_at: 'asc' as const },
     },
-    uploads: true,
+    uploads: {
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+      },
+    },
   };
 }
 
@@ -109,6 +113,7 @@ function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includ
       fileType: u.file_type,
       fileSize: u.file_size,
       createdAt: u.created_at,
+      uploadedBy: u.user,
     })),
     createdAt: task.created_at,
     updatedAt: task.updated_at,
