@@ -236,3 +236,60 @@ export const deleteTask = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+export const addTaskAttachment = async (req: AuthRequest, res: Response) => {
+  try {
+    const taskId = Number(req.params.id);
+    if (Number.isNaN(taskId)) {
+      return res.status(400).json({ message: 'Invalid task ID' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    const attachment = await taskService.addTaskAttachment(taskId, req.user!.id, {
+      fileName: req.file.originalname,
+      fileUrl,
+      fileType: req.file.mimetype,
+      fileSize: req.file.size,
+    });
+
+    res.status(201).json({
+      message: 'Attachment uploaded successfully',
+      data: attachment,
+    });
+  } catch (error) {
+    res.status(getErrorStatus(error)).json({
+      message: error instanceof Error ? error.message : 'Failed to upload attachment',
+    });
+  }
+};
+
+export const deleteTaskAttachment = async (req: AuthRequest, res: Response) => {
+  try {
+    const taskId = Number(req.params.id);
+    const attachmentId = Number(req.params.attachmentId);
+    if (Number.isNaN(taskId) || Number.isNaN(attachmentId)) {
+      return res.status(400).json({ message: 'Invalid task or attachment ID' });
+    }
+
+    const result = await taskService.deleteTaskAttachment(
+      taskId,
+      attachmentId,
+      req.user!.id,
+      req.user!.role
+    );
+
+    res.status(200).json({
+      message: 'Attachment deleted successfully',
+      data: result,
+    });
+  } catch (error) {
+    res.status(getErrorStatus(error)).json({
+      message: error instanceof Error ? error.message : 'Failed to delete attachment',
+    });
+  }
+};
+
