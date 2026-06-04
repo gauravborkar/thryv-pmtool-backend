@@ -1,14 +1,16 @@
 {
   "name": "thryv-pmtool-backend",
   "version": "0.0.1",
-  "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "prepare": "husky"
+    "prepare": "node -e \"try{require.resolve('husky')}catch(e){process.exit(0)}\" && husky"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
