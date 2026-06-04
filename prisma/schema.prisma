@@ -353,6 +353,7 @@ model DistributionRule {
   formatSequence           Json     // array of format identifiers
   peakDays                 Json     // array of ISO weekday numbers (1-7)
   maxConsecutiveSameFormat Int      @default(1)
+  regenerationMode         String   @default("ALL")
   created_at               DateTime @default(now())
   updated_at               DateTime @updatedAt
 
@@ -366,6 +367,7 @@ model ScheduledPost {
   package_id    String
   scheduled_at  DateTime
   format        String
+  is_locked     Boolean  @default(false)
   created_at    DateTime @default(now())
 
   package ContentPackage @relation(fields: [package_id], references: [id])
@@ -374,6 +376,7 @@ model ScheduledPost {
 
   @@index([package_id])
   @@index([scheduled_at])
+  @@index([is_locked])
 }
 
 model BlackoutDate {

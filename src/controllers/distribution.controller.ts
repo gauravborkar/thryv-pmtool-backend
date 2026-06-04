@@ -11,12 +11,13 @@ export const getDistributionRule = async (req: Request, res: Response) => {
 
 export const upsertDistributionRule = async (req: Request, res: Response) => {
   const packageId = req.params.projectId;
-  const { formatSequence, peakDays, maxConsecutiveSameFormat } = req.body;
+  const { formatSequence, peakDays, maxConsecutiveSameFormat, regenerationMode } = req.body;
   const data = {
     package_id: packageId,
     formatSequence: JSON.stringify(formatSequence),
     peakDays: JSON.stringify(peakDays),
     maxConsecutiveSameFormat: maxConsecutiveSameFormat ?? 1,
+    regenerationMode: regenerationMode ?? 'ALL',
   };
   const rule = await prisma.distributionRule.upsert({
     where: { package_id: packageId },
