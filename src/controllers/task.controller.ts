@@ -15,7 +15,7 @@ export const getTasks = async (req: AuthRequest, res: Response, _next: NextFunct
     const tasks = await taskService.listTasks({
       role: user.role,
       userId: user.id,
-      sortBy: req.query.sortBy as 'dueDate' | 'status' | 'client' | 'designer' | undefined,
+      sortBy: req.query.sortBy as 'dueDate' | 'status' | 'client' | 'designer' | 'designerDue' | undefined,
       sortOrder: req.query.sortOrder as 'asc' | 'desc' | undefined,
       status: req.query.status as string | undefined,
       clientId: req.query.clientId ? Number(req.query.clientId) : undefined,

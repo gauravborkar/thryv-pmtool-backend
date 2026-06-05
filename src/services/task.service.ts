@@ -17,7 +17,7 @@ type WorkflowStatus = (typeof STATUS_FLOW)[number];
 export type TaskFilters = {
   role: string;
   userId: number;
-  sortBy?: 'dueDate' | 'status' | 'client' | 'designer';
+  sortBy?: 'dueDate' | 'status' | 'client' | 'designer' | 'designerDue';
   sortOrder?: 'asc' | 'desc';
   status?: string;
   clientId?: number;
@@ -81,11 +81,16 @@ function includeTaskRelations() {
 }
 
 function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includeTaskRelations> }>) {
+  const desc = task.calendar_entry?.description || '';
+  const parts = desc.split('\n\n');
+  const brief = parts[0] || '';
+  const postSpecs = parts.slice(1).join('\n\n') || '';
+
   return {
     id: task.id,
     title: task.title,
-    brief: task.calendar_entry?.description || '',
-    postSpecs: '',
+    brief,
+    postSpecs,
     status: task.status.name,
     statusId: task.status_id,
     priority: task.priority,
@@ -177,7 +182,15 @@ export async function listTasks(filters: TaskFilters) {
       const bDesigner = b.assigned_designer?.name ?? '';
       return aDesigner.localeCompare(bDesigner) * direction;
     }
-    return (a.designer_due_date.getTime() - b.designer_due_date.getTime()) * direction;
+    if (sortBy === 'dueDate') {
+      const aDue = a.publish_date ? a.publish_date.getTime() : Number.MAX_SAFE_INTEGER;
+      const bDue = b.publish_date ? b.publish_date.getTime() : Number.MAX_SAFE_INTEGER;
+      return (aDue - bDue) * direction;
+    }
+    // Default/fallback: designerDue
+    const aDue = a.designer_due_date ? a.designer_due_date.getTime() : Number.MAX_SAFE_INTEGER;
+    const bDue = b.designer_due_date ? b.designer_due_date.getTime() : Number.MAX_SAFE_INTEGER;
+    return (aDue - bDue) * direction;
   });
 
   return sorted.map(mapTask);
@@ -225,7 +238,7 @@ export async function createTask(payload: CreateTaskPayload, managerId: number) 
       await prisma.calendarEntry.update({
         where: { id: payload.calendarEntryId },
         data: {
-          description: [payload.brief, payload.postSpecs].filter(Boolean).join('\n\n'),
+          description: `${payload.brief || ''}\n\n${payload.postSpecs || ''}`,
         },
       });
     }
@@ -255,13 +268,32 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, man
     include: includeTaskRelations(),
   });
 
+<<<<<<< HEAD
   if (existing.calendar_entry_id) {
+=======
+  if (existing.calendar_entry_id && (payload.brief !== undefined || payload.postSpecs !== undefined || payload.title)) {
+    const calendarEntry = await prisma.calendarEntry.findUnique({
+      where: { id: existing.calendar_entry_id },
+    });
+    const existingDesc = calendarEntry?.description || '';
+    const parts = existingDesc.split('\n\n');
+    const existingBrief = parts[0] || '';
+    const existingSpecs = parts.slice(1).join('\n\n') || '';
+
+    const newBrief = payload.brief !== undefined ? payload.brief : existingBrief;
+    const newSpecs = payload.postSpecs !== undefined ? payload.postSpecs : existingSpecs;
+
+>>>>>>> 3f63c14 (feat: enhance task sorting and update task description handling)
     await prisma.calendarEntry.update({
       where: { id: existing.calendar_entry_id },
       data: {
         title: payload.title ?? undefined,
+<<<<<<< HEAD
         description: [payload.brief, payload.postSpecs].filter(Boolean).join('\n\n') || undefined,
         date: payload.publishDate ? new Date(payload.publishDate) : undefined,
+=======
+        description: `${newBrief}\n\n${newSpecs}`,
+>>>>>>> 3f63c14 (feat: enhance task sorting and update task description handling)
       },
     });
   }
@@ -307,7 +339,11 @@ export async function assignTask(taskId: number, designerId: number) {
 
   const task = await prisma.task.update({
     where: { id: taskId },
-    data: { assigned_designer_id: designerId },
+    data: {
+      assigned_designer_id: designerId,
+      // Recalculate designer due date based on existing publish date
+      designer_due_date: addDays(existing.publish_date, -2),
+    },
     include: includeTaskRelations(),
   });
 
