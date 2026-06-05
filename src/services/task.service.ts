@@ -268,9 +268,6 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, man
     include: includeTaskRelations(),
   });
 
-<<<<<<< HEAD
-  if (existing.calendar_entry_id) {
-=======
   if (existing.calendar_entry_id && (payload.brief !== undefined || payload.postSpecs !== undefined || payload.title)) {
     const calendarEntry = await prisma.calendarEntry.findUnique({
       where: { id: existing.calendar_entry_id },
@@ -283,17 +280,12 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, man
     const newBrief = payload.brief !== undefined ? payload.brief : existingBrief;
     const newSpecs = payload.postSpecs !== undefined ? payload.postSpecs : existingSpecs;
 
->>>>>>> 3f63c14 (feat: enhance task sorting and update task description handling)
     await prisma.calendarEntry.update({
       where: { id: existing.calendar_entry_id },
       data: {
         title: payload.title ?? undefined,
-<<<<<<< HEAD
-        description: [payload.brief, payload.postSpecs].filter(Boolean).join('\n\n') || undefined,
-        date: payload.publishDate ? new Date(payload.publishDate) : undefined,
-=======
         description: `${newBrief}\n\n${newSpecs}`,
->>>>>>> 3f63c14 (feat: enhance task sorting and update task description handling)
+        date: payload.publishDate ? new Date(payload.publishDate) : undefined,
       },
     });
   }

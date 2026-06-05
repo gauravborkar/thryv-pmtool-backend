@@ -50,4 +50,30 @@ router.get('/designers', authenticate, authorize(['ADMIN', 'MANAGER']), async (_
   }
 });
 
+// DELETE /users/:id (Admin only)
+router.delete('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+
+    // Attempt to delete the user
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (error: any) {
+    // If there's a foreign key constraint error, we might want to inform the user
+    if (error.code === 'P2003') {
+      return res.status(400).json({ message: 'Cannot delete user because they are referenced by other records (e.g., tasks or clients).' });
+    }
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(500).json({ message: error.message });
+  }
+});
+
 export default router;
