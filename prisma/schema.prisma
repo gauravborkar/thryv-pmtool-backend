@@ -103,7 +103,7 @@ model User {
   audit_logs         AuditLog[]
   content_packages         ContentPackage[]
   content_package_versions ContentPackageVersion[] @relation("PackageVersionEditor")
-
+  notifications            Notification[]
 
   // Indexes
   @@index([role_id])
@@ -387,4 +387,25 @@ model BlackoutDate {
   
   @@index([date])
   @@map("blackout_dates")
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model Notification {
+  id             Int      @id @default(autoincrement())
+  user_id        Int
+  title          String
+  message        String
+  type           String
+  is_read        Boolean  @default(false)
+  reference_id   Int?
+  reference_type String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([is_read])
+  @@map("notifications")
 }

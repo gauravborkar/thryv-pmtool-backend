@@ -1,4 +1,5 @@
 import prisma from '../lib/prisma';
+import { createNotification } from './notification.service';
 
 export interface CreateClientInput {
   name: string;
@@ -118,7 +119,7 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
     managerId = user.id;
   }
 
-  return prisma.client.create({
+  const createdClient = await prisma.client.create({
     data: {
       name: data.name,
       active_month: new Date(data.active_month),
@@ -137,6 +138,19 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
       },
     },
   });
+
+  if (user.id !== managerId) {
+    await createNotification({
+      userId: managerId,
+      title: 'Client Assigned',
+      message: `You have been assigned to client "${createdClient.name}"`,
+      type: 'CLIENT_ASSIGNED',
+      referenceId: createdClient.id,
+      referenceType: 'Client'
+    });
+  }
+
+  return createdClient;
 };
 
 /**
@@ -182,7 +196,7 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
     }
   }
 
-  return prisma.client.update({
+  const updatedClient = await prisma.client.update({
     where: { id },
     data: updateData,
     include: {
@@ -195,6 +209,19 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
       },
     },
   });
+
+  if (data.manager_id && data.manager_id !== client.manager_id && user.id !== data.manager_id) {
+    await createNotification({
+      userId: data.manager_id,
+      title: 'Client Assigned',
+      message: `You have been assigned to client "${updatedClient.name}"`,
+      type: 'CLIENT_ASSIGNED',
+      referenceId: updatedClient.id,
+      referenceType: 'Client'
+    });
+  }
+
+  return updatedClient;
 };
 
 /**

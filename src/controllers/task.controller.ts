@@ -135,7 +135,7 @@ export const assignTask = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Valid taskId and designerId are required' });
     }
 
-    const task = await taskService.assignTask(taskId, designerId);
+    const task = await taskService.assignTask(taskId, designerId, req.user!.id);
     res.status(200).json({
       message: 'Task assigned successfully',
       data: task,
