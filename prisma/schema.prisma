@@ -33,6 +33,7 @@ model Invitation {
 
   @@index([token])
   @@index([email])
+  @@index([role_id])
   @@map("invitations")
 }
 
@@ -283,6 +284,7 @@ model Task {
   @@index([status_id])
   @@index([publish_date])
   @@index([priority])
+  @@index([created_by_manager_id])
   @@map("tasks")
 }
 

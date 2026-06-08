@@ -12,7 +12,10 @@ function getErrorStatus(error: unknown): number {
 export const getTasks = async (req: AuthRequest, res: Response, _next: NextFunction) => {
   try {
     const user = req.user!;
-    const tasks = await taskService.listTasks({
+    const page = req.query.page ? Number(req.query.page) : undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+
+    const result = await taskService.listTasks({
       role: user.role,
       userId: user.id,
       sortBy: req.query.sortBy as 'dueDate' | 'status' | 'client' | 'designer' | 'designerDue' | undefined,
@@ -21,11 +24,21 @@ export const getTasks = async (req: AuthRequest, res: Response, _next: NextFunct
       clientId: req.query.clientId ? Number(req.query.clientId) : undefined,
       designerId: req.query.designerId ? Number(req.query.designerId) : undefined,
       search: req.query.search as string | undefined,
+      page: page && !Number.isNaN(page) ? page : undefined,
+      limit: limit && !Number.isNaN(limit) ? limit : undefined,
     });
+
+    if (result && typeof result === 'object' && 'tasks' in result) {
+      return res.status(200).json({
+        message: 'Tasks retrieved successfully',
+        data: result.tasks,
+        pagination: result.pagination,
+      });
+    }
 
     res.status(200).json({
       message: 'Tasks retrieved successfully',
-      data: tasks,
+      data: result,
     });
   } catch (error) {
     res.status(500).json({
