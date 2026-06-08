@@ -3,6 +3,7 @@ import { authenticate, authorize } from '../middleware/auth.middleware';
 import prisma from '../lib/prisma';
 import { getBlackoutDates, addBlackoutDate, removeBlackoutDate } from '../controllers/calendar.controller';
 import { addDays, endOfMonth, parseISO, startOfMonth } from 'date-fns';
+import { createNotification } from '../services/notification.service';
 
 const router = Router();
 
@@ -99,6 +100,17 @@ router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res)
         assigned_designer: { select: { id: true, name: true, email: true } },
       },
     });
+
+    if (assignedDesignerId && Number(assignedDesignerId) !== (req as any).user.id) {
+      await createNotification({
+        userId: Number(assignedDesignerId),
+        title: 'Task Assigned',
+        message: `You have been assigned to task "${title}"`,
+        type: 'TASK_ASSIGNED',
+        referenceId: task.id,
+        referenceType: 'Task'
+      });
+    }
 
     res.status(201).json({
       message: 'Calendar entry and task created successfully',

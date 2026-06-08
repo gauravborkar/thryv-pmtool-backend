@@ -28,6 +28,7 @@ import calendarRoutes from './routes/calendar.routes'
 import invitationRoutes from './routes/invitation.routes'
 import auditRoutes from './routes/audit.routes';
 import packageRoutes from './routes/package.routes';
+import notificationRoutes from './routes/notification.routes';
 import { getDistributionRule, upsertDistributionRule, scheduleDistribution, getScheduledPosts, lockPost, unlockPost } from './controllers/distribution.controller';
 
 // Distribution endpoints
@@ -47,6 +48,7 @@ app.use('/calendar', calendarRoutes)
 app.use('/invitations', invitationRoutes)
 app.use('/audit', auditRoutes)
 app.use('/packages', packageRoutes)
+app.use('/notifications', notificationRoutes)
 
 export default app
 
