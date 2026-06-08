@@ -3,6 +3,7 @@ import { addDays } from 'date-fns';
 import prisma from '../lib/prisma';
 import path from 'path';
 import fs from 'fs';
+import { createNotification } from './notification.service';
 
 const STATUS_FLOW = [
   'NOT_STARTED',
@@ -270,6 +271,17 @@ export async function createTask(payload: CreateTaskPayload, managerId: number) 
     }
   }
 
+  if (payload.assignedDesignerId && payload.assignedDesignerId !== managerId) {
+    await createNotification({
+      userId: payload.assignedDesignerId,
+      title: 'Task Assigned',
+      message: `You have been assigned to task "${task.title}"`,
+      type: 'TASK_ASSIGNED',
+      referenceId: task.id,
+      referenceType: 'Task'
+    });
+  }
+
   return mapTask(task);
 }
 
@@ -339,10 +351,34 @@ export async function updateTaskStatus(
     include: includeTaskRelations(),
   });
 
+  if (['UPLOADED', 'APPROVED', 'SCHEDULED', 'COMPLETE', 'DONE'].includes(statusName)) {
+    if (task.created_by_manager_id !== userId) {
+      await createNotification({
+        userId: task.created_by_manager_id,
+        title: 'Task Status Updated',
+        message: `Task "${task.title}" status changed to ${statusName}`,
+        type: 'TASK_STATUS_CHANGED',
+        referenceId: task.id,
+        referenceType: 'Task'
+      });
+    }
+  } else if (['REVISION', 'IN_PROGRESS'].includes(statusName) && task.assigned_designer_id) {
+    if (task.assigned_designer_id !== userId) {
+      await createNotification({
+        userId: task.assigned_designer_id,
+        title: 'Task Status Updated',
+        message: `Task "${task.title}" status changed to ${statusName}`,
+        type: 'TASK_STATUS_CHANGED',
+        referenceId: task.id,
+        referenceType: 'Task'
+      });
+    }
+  }
+
   return mapTask(task);
 }
 
-export async function assignTask(taskId: number, designerId: number) {
+export async function assignTask(taskId: number, designerId: number, actionUserId?: number) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
   if (!existing) throw new Error('Task not found');
 
@@ -365,6 +401,17 @@ export async function assignTask(taskId: number, designerId: number) {
     include: includeTaskRelations(),
   });
 
+  if (existing.assigned_designer_id !== designerId && designerId !== actionUserId) {
+    await createNotification({
+      userId: designerId,
+      title: 'Task Assigned',
+      message: `You have been assigned to task "${existing.title}"`,
+      type: 'TASK_ASSIGNED',
+      referenceId: taskId,
+      referenceType: 'Task'
+    });
+  }
+
   return mapTask(task);
 }
 
@@ -380,6 +427,26 @@ export async function addComment(taskId: number, userId: number, payload: Commen
     },
     include: { author: { select: { id: true, name: true, email: true } } },
   });
+
+  if (task.assigned_designer_id && userId === task.assigned_designer_id) {
+    await createNotification({
+      userId: task.created_by_manager_id,
+      title: 'New Comment on Task',
+      message: `A new comment was added to task "${task.title}"`,
+      type: 'COMMENT_ADDED',
+      referenceId: taskId,
+      referenceType: 'Task'
+    });
+  } else if (task.assigned_designer_id && userId === task.created_by_manager_id) {
+    await createNotification({
+      userId: task.assigned_designer_id,
+      title: 'New Comment on Task',
+      message: `A new comment was added to task "${task.title}"`,
+      type: 'COMMENT_ADDED',
+      referenceId: taskId,
+      referenceType: 'Task'
+    });
+  }
 
   return {
     id: comment.id,
@@ -471,6 +538,17 @@ export async function addTaskAttachment(
       user: { select: { id: true, name: true, email: true } },
     },
   });
+
+  if (userId !== task.created_by_manager_id) {
+    await createNotification({
+      userId: task.created_by_manager_id,
+      title: 'Attachment Uploaded',
+      message: `An attachment was uploaded to task "${task.title}"`,
+      type: 'ATTACHMENT_UPLOADED',
+      referenceId: taskId,
+      referenceType: 'Task'
+    });
+  }
 
   return {
     id: attachment.id,

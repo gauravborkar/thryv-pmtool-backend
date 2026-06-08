@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma';
 import { localCache } from '../utils/cache';
+import { createNotification } from './notification.service';
 
 export interface CreateClientInput {
   name: string;
@@ -146,6 +147,17 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
     },
   });
 
+  if (user.id !== managerId) {
+    await createNotification({
+      userId: managerId,
+      title: 'Client Assigned',
+      message: `You have been assigned to client "${client.name}"`,
+      type: 'CLIENT_ASSIGNED',
+      referenceId: client.id,
+      referenceType: 'Client'
+    });
+  }
+
   localCache.deletePattern('clients_user_');
   return client;
 };
@@ -208,6 +220,18 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
   });
 
   localCache.deletePattern('clients_user_');
+
+  if (data.manager_id && data.manager_id !== client.manager_id && user.id !== data.manager_id) {
+    await createNotification({
+      userId: data.manager_id,
+      title: 'Client Assigned',
+      message: `You have been assigned to client "${updated.name}"`,
+      type: 'CLIENT_ASSIGNED',
+      referenceId: updated.id,
+      referenceType: 'Client'
+    });
+  }
+
   return updated;
 };
 
