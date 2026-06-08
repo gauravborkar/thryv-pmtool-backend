@@ -1,4 +1,5 @@
 import prisma from '../lib/prisma';
+import { localCache } from '../utils/cache';
 
 export interface CreateClientInput {
   name: string;
@@ -33,6 +34,10 @@ function enforceOwnership(client: { manager_id: number }, user: { id: number; ro
  * - MANAGER: Can only see clients they manage.
  */
 export const getClients = async (user: { id: number; role: string }, activeOnly = true) => {
+  const cacheKey = `clients_user_${user.id}_active_${activeOnly}`;
+  const cached = localCache.get<any[]>(cacheKey);
+  if (cached) return cached;
+
   const whereClause: any = {};
 
   if (user.role === 'MANAGER') {
@@ -43,7 +48,7 @@ export const getClients = async (user: { id: number; role: string }, activeOnly 
     whereClause.is_active = true;
   }
 
-  return prisma.client.findMany({
+  const result = await prisma.client.findMany({
     where: whereClause,
     include: {
       manager: {
@@ -58,6 +63,9 @@ export const getClients = async (user: { id: number; role: string }, activeOnly 
       created_at: 'desc',
     },
   });
+
+  localCache.set(cacheKey, result, 120 * 1000); // 2 minutes
+  return result;
 };
 
 /**
@@ -118,7 +126,7 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
     managerId = user.id;
   }
 
-  return prisma.client.create({
+  const client = await prisma.client.create({
     data: {
       name: data.name,
       active_month: new Date(data.active_month),
@@ -137,6 +145,9 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
       },
     },
   });
+
+  localCache.deletePattern('clients_user_');
+  return client;
 };
 
 /**
@@ -182,7 +193,7 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
     }
   }
 
-  return prisma.client.update({
+  const updated = await prisma.client.update({
     where: { id },
     data: updateData,
     include: {
@@ -195,6 +206,9 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
       },
     },
   });
+
+  localCache.deletePattern('clients_user_');
+  return updated;
 };
 
 /**
@@ -212,7 +226,7 @@ export const archiveClient = async (id: number, user: { id: number; role: string
   // Use helper for ownership enforcement
   enforceOwnership(client, user);
 
-  return prisma.client.update({
+  const archived = await prisma.client.update({
     where: { id },
     data: { is_active: false },
     include: {
@@ -225,4 +239,7 @@ export const archiveClient = async (id: number, user: { id: number; role: string
       },
     },
   });
+
+  localCache.deletePattern('clients_user_');
+  return archived;
 };

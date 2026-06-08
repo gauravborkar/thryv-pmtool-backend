@@ -23,6 +23,8 @@ export type TaskFilters = {
   clientId?: number;
   designerId?: number;
   search?: string;
+  page?: number;
+  limit?: number;
 };
 
 export type CreateTaskPayload = {
@@ -49,12 +51,20 @@ export type CommentPayload = {
   content: string;
 };
 
+const statusCache = new Map<string, number>();
+
 async function getOrCreateStatus(name: WorkflowStatus) {
-  return prisma.taskStatus.upsert({
+  const cachedId = statusCache.get(name);
+  if (cachedId) {
+    return { id: cachedId, name };
+  }
+  const status = await prisma.taskStatus.upsert({
     where: { name },
     update: {},
     create: { name },
   });
+  statusCache.set(name, status.id);
+  return status;
 }
 
 function getStatusRank(name: string): number {
@@ -159,41 +169,57 @@ export async function listTasks(filters: TaskFilters) {
     ];
   }
 
-  const tasks = await prisma.task.findMany({
-    where,
-    include: includeTaskRelations(),
-  });
-
   const sortBy = filters.sortBy ?? 'dueDate';
-  const sortOrder = filters.sortOrder ?? 'asc';
-  const direction = sortOrder === 'asc' ? 1 : -1;
+  const sortOrder = (filters.sortOrder ?? 'asc') as Prisma.SortOrder;
 
-  const sorted = [...tasks].sort((a, b) => {
-    if (sortBy === 'status') {
-      return (getStatusRank(a.status.name) - getStatusRank(b.status.name)) * direction;
-    }
-    if (sortBy === 'client') {
-      const aClient = a.calendar_entry?.client?.name ?? '';
-      const bClient = b.calendar_entry?.client?.name ?? '';
-      return aClient.localeCompare(bClient) * direction;
-    }
-    if (sortBy === 'designer') {
-      const aDesigner = a.assigned_designer?.name ?? '';
-      const bDesigner = b.assigned_designer?.name ?? '';
-      return aDesigner.localeCompare(bDesigner) * direction;
-    }
-    if (sortBy === 'dueDate') {
-      const aDue = a.publish_date ? a.publish_date.getTime() : Number.MAX_SAFE_INTEGER;
-      const bDue = b.publish_date ? b.publish_date.getTime() : Number.MAX_SAFE_INTEGER;
-      return (aDue - bDue) * direction;
-    }
-    // Default/fallback: designerDue
-    const aDue = a.designer_due_date ? a.designer_due_date.getTime() : Number.MAX_SAFE_INTEGER;
-    const bDue = b.designer_due_date ? b.designer_due_date.getTime() : Number.MAX_SAFE_INTEGER;
-    return (aDue - bDue) * direction;
-  });
+  let orderBy: Prisma.TaskOrderByWithRelationInput = { publish_date: sortOrder };
 
-  return sorted.map(mapTask);
+  if (sortBy === 'status') {
+    orderBy = { status_id: sortOrder };
+  } else if (sortBy === 'client') {
+    orderBy = { calendar_entry: { client: { name: sortOrder } } };
+  } else if (sortBy === 'designer') {
+    orderBy = { assigned_designer: { name: sortOrder } };
+  } else if (sortBy === 'dueDate') {
+    orderBy = { publish_date: sortOrder };
+  } else if (sortBy === 'designerDue') {
+    orderBy = { designer_due_date: sortOrder };
+  }
+
+  const isPaginated = filters.page !== undefined || filters.limit !== undefined;
+  const page = Math.max(1, filters.page || 1);
+  const limit = Math.max(1, Math.min(100, filters.limit || 10));
+  const skip = (page - 1) * limit;
+
+  if (isPaginated) {
+    const [tasks, total] = await Promise.all([
+      prisma.task.findMany({
+        where,
+        include: includeTaskRelations(),
+        orderBy,
+        skip,
+        take: limit,
+      }),
+      prisma.task.count({ where }),
+    ]);
+
+    return {
+      tasks: tasks.map(mapTask),
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  } else {
+    const tasks = await prisma.task.findMany({
+      where,
+      include: includeTaskRelations(),
+      orderBy,
+    });
+    return tasks.map(mapTask);
+  }
 }
 
 export async function getTaskById(taskId: number, role: string, userId: number) {
