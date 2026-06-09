@@ -261,7 +261,15 @@ export const addTaskAttachment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    // Upload buffer to cloud storage (Firebase / S3 based on STORAGE_PROVIDER env)
+    const { storage } = await import('../lib/storage');
+    const { fileUrl } = await storage.uploadFile({
+      fileName: req.file.originalname,
+      fileType: req.file.mimetype,
+      buffer: req.file.buffer,
+      folder: 'task-media',
+    });
+
     const attachment = await taskService.addTaskAttachment(taskId, req.user!.id, {
       fileName: req.file.originalname,
       fileUrl,
