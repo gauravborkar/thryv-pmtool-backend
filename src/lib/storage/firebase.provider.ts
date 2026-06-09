@@ -2,21 +2,20 @@
  * Firebase Storage provider (backed by Google Cloud Storage).
  *
  * Upload flow:
- *   1. Backend generates a signed WRITE URL (15-min expiry) + a permanent public read URL.
- *   2. Frontend PUTs the file directly to the signed URL (file never touches our server).
- *   3. Frontend calls POST /tasks/:id/media with { fileName, fileUrl, fileType, fileSize }
- *      to persist the record in the database.
+ *   1. Frontend sends file as FormData to POST /tasks/:id/media (same as before).
+ *   2. Backend receives it via multer, uploads buffer to Firebase via Admin SDK.
+ *   3. Backend stores the returned Firebase public URL in the database.
  *
  * Required .env vars:
  *   FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_STORAGE_BUCKET
  *
- * Firebase Storage Rules (set in Firebase console → Storage → Rules):
+ * Firebase Storage Rules (Firebase console → Storage → Rules):
  *   rules_version = '2';
  *   service firebase.storage {
  *     match /b/{bucket}/o {
- *       match /uploads/{allPaths=**} {
- *         allow read: if true;   // public CDN reads
- *         allow write: if false; // only server via signed URLs
+ *       match /{allPaths=**} {
+ *         allow read: if true;
+ *         allow write: if false;
  *       }
  *     }
  *   }
@@ -48,29 +47,26 @@ function ensureInitialized() {
 }
 
 export const firebaseProvider: StorageProvider = {
-  async getSignedUploadUrl({ fileName, fileType, folder = 'uploads' }) {
+  async uploadFile({ fileName, fileType, buffer, folder = 'uploads' }) {
     ensureInitialized();
     const bucket = getStorage().bucket();
 
-    // Build a unique, URL-safe file path
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const cleanName = fileName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
     const filePath = `${folder}/${uniqueSuffix}-${cleanName}`;
 
     const file = bucket.file(filePath);
 
-    // Signed URL the frontend can PUT to (expires in 15 minutes)
-    const [uploadUrl] = await file.getSignedUrl({
-      action: 'write',
-      expires: Date.now() + 15 * 60 * 1000,
-      contentType: fileType,
+    // Upload buffer with public: true so it's readable via storage.googleapis.com
+    await file.save(buffer, {
+      metadata: { contentType: fileType },
+      public: true,
     });
 
-    // Permanent public read URL (requires public read Storage Rules — see file comment above)
     const bucketName = process.env.FIREBASE_STORAGE_BUCKET ?? bucket.name;
     const fileUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
 
-    return { uploadUrl, fileUrl };
+    return { fileUrl };
   },
 
   async deleteFile(fileUrl: string) {
@@ -78,7 +74,7 @@ export const firebaseProvider: StorageProvider = {
       const bucketName = process.env.FIREBASE_STORAGE_BUCKET ?? '';
       const prefix = `https://storage.googleapis.com/${bucketName}/`;
 
-      if (!fileUrl.startsWith(prefix)) return; // not a Firebase Storage URL — skip
+      if (!fileUrl.startsWith(prefix)) return; // not a Firebase URL — skip
 
       ensureInitialized();
       const bucket = getStorage().bucket();

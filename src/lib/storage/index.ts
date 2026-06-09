@@ -8,18 +8,21 @@
 import { StorageProvider } from './storage.interface';
 import { firebaseProvider } from './firebase.provider';
 import { s3Provider } from './s3.provider';
+import { cloudinaryProvider } from './cloudinary.provider';
 
 function createStorageProvider(): StorageProvider {
   const provider = (process.env.STORAGE_PROVIDER ?? 'firebase').toLowerCase();
   switch (provider) {
     case 'firebase':
       return firebaseProvider;
+    case 'cloudinary':
+      return cloudinaryProvider;
     case 's3':
     case 'r2':
       return s3Provider;
     default:
       throw new Error(
-        `Unknown STORAGE_PROVIDER: "${provider}". Valid options: firebase, s3`
+        `Unknown STORAGE_PROVIDER: "${provider}". Valid options: firebase, cloudinary, s3`
       );
   }
 }

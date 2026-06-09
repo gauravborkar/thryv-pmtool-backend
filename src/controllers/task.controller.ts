@@ -257,42 +257,25 @@ export const addTaskAttachment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid task ID' });
     }
 
-    let attachmentData: { fileName: string; fileUrl: string; fileType: string; fileSize: number };
-
-    if (req.file) {
-      // Legacy path: file uploaded directly to the server via multer
-      const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-      attachmentData = {
-        fileName: req.file.originalname,
-        fileUrl,
-        fileType: req.file.mimetype,
-        fileSize: req.file.size,
-      };
-    } else {
-      // Presigned URL path: file was uploaded directly to cloud storage by the client.
-      // Frontend sends { fileName, fileUrl, fileType, fileSize } as JSON.
-      const { fileName, fileUrl, fileType, fileSize } = req.body as {
-        fileName?: string;
-        fileUrl?: string;
-        fileType?: string;
-        fileSize?: number;
-      };
-
-      if (!fileName || !fileUrl || !fileType || fileSize === undefined) {
-        return res.status(400).json({
-          message: 'fileName, fileUrl, fileType, and fileSize are required',
-        });
-      }
-
-      attachmentData = {
-        fileName,
-        fileUrl,
-        fileType,
-        fileSize: Number(fileSize),
-      };
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const attachment = await taskService.addTaskAttachment(taskId, req.user!.id, attachmentData);
+    // Upload buffer to cloud storage (Firebase / S3 based on STORAGE_PROVIDER env)
+    const { storage } = await import('../lib/storage');
+    const { fileUrl } = await storage.uploadFile({
+      fileName: req.file.originalname,
+      fileType: req.file.mimetype,
+      buffer: req.file.buffer,
+      folder: 'task-media',
+    });
+
+    const attachment = await taskService.addTaskAttachment(taskId, req.user!.id, {
+      fileName: req.file.originalname,
+      fileUrl,
+      fileType: req.file.mimetype,
+      fileSize: req.file.size,
+    });
 
     res.status(201).json({
       message: 'Attachment uploaded successfully',

@@ -4,25 +4,22 @@
  * Swap providers by changing STORAGE_PROVIDER in .env — no other code changes needed.
  */
 
-export interface PresignResult {
-  /** Short-lived signed URL — frontend does a PUT to this URL with the raw file bytes */
-  uploadUrl: string;
-  /** Permanent public URL stored in the database */
+export interface UploadResult {
+  /** Permanent public URL to store in the database */
   fileUrl: string;
 }
 
 export interface StorageProvider {
   /**
-   * Generate a presigned URL for direct client-side upload.
-   * @param options.fileName  Original file name (used to build a unique storage path)
-   * @param options.fileType  MIME type (e.g. "image/png")
-   * @param options.folder    Storage folder prefix (default: "uploads")
+   * Upload a file buffer to cloud storage.
+   * Returns the permanent public URL.
    */
-  getSignedUploadUrl(options: {
+  uploadFile(options: {
     fileName: string;
     fileType: string;
+    buffer: Buffer;
     folder?: string;
-  }): Promise<PresignResult>;
+  }): Promise<UploadResult>;
 
   /**
    * Delete a file by its public URL.
