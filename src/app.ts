@@ -30,6 +30,7 @@ import auditRoutes from './routes/audit.routes';
 import packageRoutes from './routes/package.routes';
 import notificationRoutes from './routes/notification.routes';
 import { getDistributionRule, upsertDistributionRule, scheduleDistribution, getScheduledPosts, lockPost, unlockPost } from './controllers/distribution.controller';
+import uploadRoutes from './routes/upload.routes';
 
 // Distribution endpoints
 app.get('/distribution/:projectId', getDistributionRule);
@@ -49,6 +50,7 @@ app.use('/invitations', invitationRoutes)
 app.use('/audit', auditRoutes)
 app.use('/packages', packageRoutes)
 app.use('/notifications', notificationRoutes)
+app.use('/storage', uploadRoutes)
 
 export default app
 
