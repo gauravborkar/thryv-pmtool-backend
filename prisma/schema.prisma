@@ -129,6 +129,7 @@ model Client {
   packages         Package[]
   calendar_entries CalendarEntry[]
   uploads          Attachment[]
+  knowledge        ClientKnowledge[]
 
   // Indexes
   @@index([manager_id])
@@ -256,6 +257,20 @@ model CalendarEntry {
   @@index([client_id])
   @@index([date])
   @@map("calendar_entries")
+}
+
+model ClientKnowledge {
+  id         Int      @id @default(autoincrement())
+  client_id  Int
+  sheet_name String
+  data       Json
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@index([client_id])
+  @@map("client_knowledge")
 }
 
 model Task {
