@@ -31,13 +31,13 @@ export const cacheMiddleware = (durationInSeconds: number = DEFAULT_EXPIRATION) 
         // Only cache successful responses
         if (res.statusCode >= 200 && res.statusCode < 300) {
           redis.setex(cacheKey, durationInSeconds, JSON.stringify(body))
-            .catch(err => console.error('Redis cache error:', err));
+            .catch((err: any) => console.error('Redis cache error:', err));
         }
         return originalJson(body);
       };
 
       next();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Cache middleware error:', err);
       next(); // Fail gracefully and proceed without cache
     }

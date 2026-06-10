@@ -10,7 +10,7 @@ const redis = new Redis(redisUrl, {
   enableReadyCheck: false,
 });
 
-redis.on('error', (err) => {
+redis.on('error', (err: any) => {
   console.error('Redis Client Error', err);
 });
 

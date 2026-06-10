@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import path from 'path';
 import fs from 'fs';
 import { createNotification } from './notification.service';
+import { storage } from '../lib/storage';
 
 const STATUS_FLOW = [
   'NOT_STARTED',
@@ -581,14 +582,17 @@ export async function deleteTaskAttachment(
     throw new Error('Forbidden: You do not have permission to delete this attachment');
   }
 
-  // Delete physical file
-  const filePath = path.join(process.cwd(), 'uploads', path.basename(attachment.file_url));
+  // Delete from cloud storage (Firebase / S3) — no-op if URL doesn't match provider
+  await storage.deleteFile(attachment.file_url);
+
+  // Legacy fallback: also try to remove a local disk file (for old uploads)
+  const localFilePath = path.join(process.cwd(), 'uploads', path.basename(attachment.file_url));
   try {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (fs.existsSync(localFilePath)) {
+      fs.unlinkSync(localFilePath);
     }
   } catch (err) {
-    console.error('Failed to delete physical file:', err);
+    console.error('Failed to delete local file:', err);
   }
 
   await prisma.attachment.delete({ where: { id: attachmentId } });

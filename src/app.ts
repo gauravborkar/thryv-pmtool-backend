@@ -32,6 +32,7 @@ import auditRoutes from './routes/audit.routes';
 import packageRoutes from './routes/package.routes';
 import notificationRoutes from './routes/notification.routes';
 import { getDistributionRule, upsertDistributionRule, scheduleDistribution, getScheduledPosts, lockPost, unlockPost } from './controllers/distribution.controller';
+import uploadRoutes from './routes/upload.routes';
 
 // Distribution endpoints - optionally cache get routes
 app.get('/distribution/:projectId', cacheMiddleware(30), getDistributionRule);
@@ -51,6 +52,7 @@ app.use('/invitations', cacheMiddleware(60), invitationRoutes)
 app.use('/audit', cacheMiddleware(60), auditRoutes)
 app.use('/packages', cacheMiddleware(60), packageRoutes)
 app.use('/notifications', cacheMiddleware(30), notificationRoutes)
+app.use('/storage', uploadRoutes)
 
 export default app
 

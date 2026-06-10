@@ -4,6 +4,9 @@ import prisma from '../lib/prisma';
 import { getBlackoutDates, addBlackoutDate, removeBlackoutDate } from '../controllers/calendar.controller';
 import { addDays, endOfMonth, parseISO, startOfMonth } from 'date-fns';
 import { createNotification } from '../services/notification.service';
+import { upload } from '../middleware/upload.middleware';
+import { generateCalendarData, AIModelType, buildContext } from '../services/ai.service';
+import * as xlsx from 'xlsx';
 
 const router = Router();
 
@@ -11,6 +14,133 @@ const router = Router();
 router.get('/blackouts', authenticate, getBlackoutDates);
 router.post('/blackouts', authenticate, authorize(['ADMIN', 'MANAGER']), addBlackoutDate);
 router.delete('/blackouts/:date', authenticate, authorize(['ADMIN', 'MANAGER']), removeBlackoutDate);
+
+/**
+ * @route POST /calendar/import
+ * @desc Import AI Calendar Data
+ * @access Private
+ */
+router.post('/import', authenticate, upload.single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    const { client_id } = req.body;
+
+    if (!file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    if (!client_id) {
+      return res.status(400).json({ message: 'client_id is required' });
+    }
+
+    // Save the raw file as an Attachment
+    const attachment = await prisma.attachment.create({
+      data: {
+        file_name: file.originalname,
+        file_url: `/uploads/${file.filename}`,
+        file_type: file.mimetype,
+        file_size: file.size,
+        client_id: Number(client_id),
+        uploaded_by: (req as any).user.id,
+      },
+    });
+
+    // Parse the Excel file and store each sheet dynamically
+    const workbook = xlsx.readFile(file.path);
+    const sheetNames = workbook.SheetNames;
+
+    // Delete existing knowledge for this client to replace with new upload
+    await prisma.clientKnowledge.deleteMany({
+      where: { client_id: Number(client_id) }
+    });
+
+    const knowledgePromises = sheetNames.map((sheetName) => {
+      const worksheet = workbook.Sheets[sheetName];
+      const data = xlsx.utils.sheet_to_json(worksheet);
+      
+      // Store the parsed sheet data in ClientKnowledge
+      return prisma.clientKnowledge.create({
+        data: {
+          client_id: Number(client_id),
+          sheet_name: sheetName,
+          data: data as any,
+        }
+      });
+    });
+
+    await Promise.all(knowledgePromises);
+
+    res.status(200).json({
+      message: 'File uploaded successfully',
+      data: attachment,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Failed to upload file' });
+  }
+});
+
+/**
+ * @route POST /calendar/generate
+ * @desc Generate calendar data using Groq/Gemini
+ * @access Private
+ */
+router.post('/generate', authenticate, async (req, res) => {
+  try {
+    const { client_id, month, model, instructions } = req.body;
+
+    if (!client_id || !month) {
+      return res.status(400).json({ message: 'client_id and month are required' });
+    }
+
+    const dbContext = await buildContext(Number(client_id));
+
+    const prompt = `You are Sentari. Generate a 30-day content calendar for the month of ${month}. 
+    
+    Here is the client context extracted from their database and spreadsheets:
+    ${dbContext}
+
+    Follow these instructions: ${instructions || 'Provide a good mix of content based on the context provided.'}
+    Ensure the output is valid JSON in the exact format: { "entries": [{ "date": "YYYY-MM-DD", "title": "Post Title", "description": "Post Description" }] }`;
+
+    const generatedJson = await generateCalendarData(prompt, (model as AIModelType) || 'auto');
+    
+    // Parse the JSON string
+    let parsedData;
+    try {
+      parsedData = JSON.parse(generatedJson);
+    } catch (e) {
+      // Sometimes LLMs wrap JSON in Markdown code blocks
+      const cleaned = generatedJson.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      parsedData = JSON.parse(cleaned);
+    }
+
+    // Save the generated entries into the database
+    if (parsedData && Array.isArray(parsedData.entries)) {
+      const createdEntries = await Promise.all(
+        parsedData.entries.map(async (item: any) => {
+          return prisma.calendarEntry.create({
+            data: {
+              client_id: Number(client_id),
+              date: parseISO(item.date),
+              title: item.title,
+              description: item.description,
+            },
+          });
+        })
+      );
+
+      return res.status(200).json({
+        message: 'Calendar generated and saved successfully',
+        data: createdEntries,
+      });
+    } else {
+      throw new Error('Invalid JSON format returned from AI');
+    }
+  } catch (error: any) {
+    console.error('AI Generation Error:', error);
+    res.status(500).json({ message: error.message || 'Failed to generate calendar' });
+  }
+});
 
 /**
  * @route GET /calendar
