@@ -19,7 +19,7 @@ app.get('/health', (_req, res) => {
 })
 
 app.get('/', (_req, res) => {
-  res.json({ message: 'Thryv PM Tool API' })
+  res.json({ message: 'XOXO PM Tool API' })
 })
 
 import authRoutes from './routes/auth.routes'
