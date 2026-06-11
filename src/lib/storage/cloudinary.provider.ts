@@ -58,6 +58,32 @@ export const cloudinaryProvider: StorageProvider = {
     });
   },
 
+  async getSignedUploadUrl({ folder = 'task-media' }) {
+    ensureInitialized();
+
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const folderName = folder;
+
+    const signature = cloudinary.utils.api_sign_request(
+      {
+        timestamp,
+        folder: folderName,
+      },
+      process.env.CLOUDINARY_API_SECRET!
+    );
+
+    return {
+      uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/auto/upload`,
+      fileUrl: '',
+      additionalFields: {
+        timestamp,
+        folder: folderName,
+        signature,
+        api_key: process.env.CLOUDINARY_API_KEY,
+      },
+    };
+  },
+
   async deleteFile(fileUrl: string) {
     try {
       if (!fileUrl.includes('res.cloudinary.com')) return; // Not a Cloudinary URL

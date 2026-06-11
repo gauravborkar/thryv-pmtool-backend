@@ -22,6 +22,19 @@ export interface StorageProvider {
   }): Promise<UploadResult>;
 
   /**
+   * Generate a presigned URL or upload parameters for direct client-to-cloud file upload.
+   */
+  getSignedUploadUrl?(options: {
+    fileName: string;
+    fileType: string;
+    folder?: string;
+  }): Promise<{
+    uploadUrl: string;
+    fileUrl: string;
+    additionalFields?: Record<string, any>;
+  }>;
+
+  /**
    * Delete a file by its public URL.
    * Should not throw if the file does not exist.
    */
