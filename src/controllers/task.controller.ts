@@ -257,24 +257,48 @@ export const addTaskAttachment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid task ID' });
     }
 
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+    let fileName = '';
+    let fileUrl = '';
+    let fileType = '';
+    let fileSize = 0;
+
+    // Check if the file is already uploaded directly to the CDN by the client
+    if (req.body.fileUrl) {
+      fileName = req.body.fileName;
+      fileUrl = req.body.fileUrl;
+      fileType = req.body.fileType;
+      fileSize = Number(req.body.fileSize || 0);
+
+      if (!fileName || !fileType) {
+        return res.status(400).json({
+          message: 'fileName and fileType are required for direct-to-CDN uploads.',
+        });
+      }
+    } else {
+      // Server-proxied upload fallback
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded or fileUrl provided' });
+      }
+
+      const { storage } = await import('../lib/storage');
+      const uploadResult = await storage.uploadFile({
+        fileName: req.file.originalname,
+        fileType: req.file.mimetype,
+        buffer: req.file.buffer,
+        folder: 'task-media',
+      });
+
+      fileName = req.file.originalname;
+      fileUrl = uploadResult.fileUrl;
+      fileType = req.file.mimetype;
+      fileSize = req.file.size;
     }
 
-    // Upload buffer to cloud storage (Firebase / S3 based on STORAGE_PROVIDER env)
-    const { storage } = await import('../lib/storage');
-    const { fileUrl } = await storage.uploadFile({
-      fileName: req.file.originalname,
-      fileType: req.file.mimetype,
-      buffer: req.file.buffer,
-      folder: 'task-media',
-    });
-
     const attachment = await taskService.addTaskAttachment(taskId, req.user!.id, {
-      fileName: req.file.originalname,
+      fileName,
       fileUrl,
-      fileType: req.file.mimetype,
-      fileSize: req.file.size,
+      fileType,
+      fileSize,
     });
 
     res.status(201).json({

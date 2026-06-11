@@ -1,13 +1,35 @@
-/**
- * Upload controller — reserved for future direct-upload features.
- * Currently the main upload path goes through POST /tasks/:id/media
- * which handles Firebase upload internally via the storage provider.
- */
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { storage } from '../lib/storage';
 
-export const getPresignedUrl = async (_req: AuthRequest, res: Response) => {
-  res.status(410).json({
-    message: 'Presigned URL upload is not active. Use POST /tasks/:id/media to upload files.',
-  });
+export const getPresignedUrl = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!storage.getSignedUploadUrl) {
+      return res.status(400).json({
+        message: `The active storage provider ("${process.env.STORAGE_PROVIDER || 'firebase'}") does not support direct browser-to-cloud uploads.`,
+      });
+    }
+
+    const { fileName, fileType, folder } = req.body;
+    if (!fileName || !fileType) {
+      return res.status(400).json({
+        message: 'fileName and fileType are required in the request body.',
+      });
+    }
+
+    const result = await storage.getSignedUploadUrl({
+      fileName,
+      fileType,
+      folder: folder || 'task-media',
+    });
+
+    res.status(200).json({
+      message: 'Upload signature generated successfully',
+      data: result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error instanceof Error ? error.message : 'Failed to generate upload signature',
+    });
+  }
 };
