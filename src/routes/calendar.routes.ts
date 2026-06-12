@@ -37,7 +37,7 @@ router.post('/import', authenticate, upload.single('file'), async (req, res) => 
     const attachment = await prisma.attachment.create({
       data: {
         file_name: file.originalname,
-        file_url: `/uploads/${file.filename}`,
+        file_url: `/uploads/${file.originalname}`,
         file_type: file.mimetype,
         file_size: file.size,
         client_id: Number(client_id),
@@ -46,7 +46,7 @@ router.post('/import', authenticate, upload.single('file'), async (req, res) => 
     });
 
     // Parse the Excel file and store each sheet dynamically
-    const workbook = xlsx.readFile(file.path);
+    const workbook = xlsx.read(file.buffer);
     const sheetNames = workbook.SheetNames;
 
     // Delete existing knowledge for this client to replace with new upload
