@@ -426,3 +426,15 @@ model Notification {
   @@index([is_read])
   @@map("notifications")
 }
+
+// ==================== SYSTEM SETTINGS ====================
+
+model RetentionPolicy {
+  id         Int      @id @default(autoincrement())
+  isEnabled  Boolean  @default(false)
+  keepDays   Int      @default(30)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("retention_policies")
+}

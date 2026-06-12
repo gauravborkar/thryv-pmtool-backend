@@ -179,6 +179,18 @@ async function main() {
     }
   }
 
+  // 6. Seed Retention Policy Settings
+  console.log('Seeding retention policy settings...');
+  await prisma.retentionPolicy.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      id: 1,
+      isEnabled: false,
+      keepDays: 30,
+    },
+  });
+
   console.log('Seeding completed successfully!');
 }
 
