@@ -118,6 +118,10 @@ export const refresh = async (refreshToken: string) => {
       throw new Error('User not found or inactive');
     }
 
+    if (user.current_session_token && payload.sessionToken !== user.current_session_token) {
+      throw new Error('Session expired');
+    }
+
     const sessionToken = crypto.randomUUID();
     await prisma.user.update({
       where: { id: user.id },
