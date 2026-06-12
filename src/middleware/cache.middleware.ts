@@ -12,6 +12,12 @@ export const cacheMiddleware = (durationInSeconds: number = DEFAULT_EXPIRATION) 
       return;
     }
 
+    // If Redis is not connected/ready, fail fast and proceed without cache
+    if (redis.status !== 'ready') {
+      next();
+      return;
+    }
+
     // Build a unique cache key based on the URL and query parameters
     const cacheKey = `__express__${req.originalUrl || req.url}`;
 
