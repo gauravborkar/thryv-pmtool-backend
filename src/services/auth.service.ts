@@ -17,11 +17,12 @@ export const comparePassword = async (password: string, hash: string): Promise<b
   return bcrypt.compare(password, hash);
 };
 
-export const generateTokens = (user: any) => {
+export const generateTokens = (user: any, sessionToken: string) => {
   const payload = {
     id: user.id,
     email: user.email,
     role: user.role.name,
+    sessionToken,
   };
 
   const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
@@ -45,7 +46,13 @@ export const login = async (email: string, password: string) => {
     throw new Error('Invalid credentials');
   }
 
-  const tokens = generateTokens(user);
+  const sessionToken = crypto.randomUUID();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { current_session_token: sessionToken },
+  });
+
+  const tokens = generateTokens(user, sessionToken);
 
   // Exclude password from user object
   const { password: _, ...userWithoutPassword } = user;
@@ -75,6 +82,7 @@ export const register = async (userData: any) => {
   }
 
   const hashedPasswordStr = await hashPassword(password);
+  const sessionToken = crypto.randomUUID();
 
   // Create user with the role pre-assigned in the invitation
   const user = await prisma.user.create({
@@ -83,6 +91,7 @@ export const register = async (userData: any) => {
       password: hashedPasswordStr,
       name,
       role_id: invitation.role_id,
+      current_session_token: sessionToken,
     },
     include: { role: true },
   });
@@ -90,7 +99,7 @@ export const register = async (userData: any) => {
   // Mark invitation as used
   await invitationService.markInvitationAsUsed(inviteToken);
 
-  const tokens = generateTokens(user);
+  const tokens = generateTokens(user, sessionToken);
   const { password: _, ...userWithoutPassword } = user;
 
   return { user: userWithoutPassword, tokens };
@@ -109,7 +118,13 @@ export const refresh = async (refreshToken: string) => {
       throw new Error('User not found or inactive');
     }
 
-    const tokens = generateTokens(user);
+    const sessionToken = crypto.randomUUID();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { current_session_token: sessionToken },
+    });
+
+    const tokens = generateTokens(user, sessionToken);
     return tokens;
   } catch (error) {
     throw new Error('Invalid refresh token');

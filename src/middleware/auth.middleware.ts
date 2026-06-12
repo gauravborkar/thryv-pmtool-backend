@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import prisma from '../lib/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 
@@ -8,10 +9,11 @@ export interface AuthRequest extends Request {
     id: number;
     email: string;
     role: string;
+    sessionToken?: string;
   };
 }
 
-export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -22,6 +24,17 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 
   try {
     const payload = jwt.verify(token, JWT_SECRET) as any;
+    
+    const dbUser = await prisma.user.findUnique({ where: { id: payload.id } });
+    
+    if (!dbUser || !dbUser.is_active) {
+      return res.status(401).json({ message: 'User not found or inactive' });
+    }
+    
+    if (dbUser.current_session_token && payload.sessionToken !== dbUser.current_session_token) {
+      return res.status(401).json({ message: 'Session expired. Logged in from another device.' });
+    }
+
     req.user = payload;
     next();
   } catch (error) {
