@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import redis from '../lib/redis';
 
+
 // Default cache duration: 60 seconds
 const DEFAULT_EXPIRATION = 60;
 
