@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import redis from '../lib/redis';
 
+
 // Default cache duration: 60 seconds
 const DEFAULT_EXPIRATION = 60;
 
@@ -8,6 +9,12 @@ export const cacheMiddleware = (durationInSeconds: number = DEFAULT_EXPIRATION) 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     // Only cache GET requests
     if (req.method !== 'GET') {
+      next();
+      return;
+    }
+
+    // If Redis is not connected/ready, fail fast and proceed without cache
+    if (redis.status !== 'ready') {
       next();
       return;
     }
