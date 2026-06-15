@@ -2,6 +2,14 @@ import { mockDeep, mockReset, DeepMockProxy } from 'jest-mock-extended';
 import { PrismaClient } from '@prisma/client';
 import prisma from '../lib/prisma';
 
+// Mock bcryptjs
+jest.mock('bcryptjs', () => ({
+  genSalt: jest.fn().mockResolvedValue('mock-salt'),
+  hash: jest.fn().mockResolvedValue('mock-hash'),
+  compare: jest.fn().mockResolvedValue(true),
+  setRandomFallback: jest.fn(),
+}));
+
 // Mock Redis
 jest.mock('ioredis', () => {
   return jest.fn().mockImplementation(() => ({
