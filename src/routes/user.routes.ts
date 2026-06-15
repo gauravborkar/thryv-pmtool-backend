@@ -7,11 +7,82 @@ const router = Router();
 // GET /users (Admin only)
 router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
   try {
-    const users = await prisma.user.findMany({
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = req.query.search as string;
+    const role = req.query.role as string;
+
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (role && role !== 'ALL') {
+      where.role = { name: role };
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { created_at: 'desc' },
+        include: { role: true },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    const usersWithoutPassword = users.map(({ password, ...userWithoutPassword }) => userWithoutPassword);
+    
+    res.json({
+      data: usersWithoutPassword,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+import bcrypt from 'bcryptjs';
+
+// POST /users (Admin only)
+router.post('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+  try {
+    const { email, password, name, role_id } = req.body;
+    
+    if (!email || !password || !name || !role_id) {
+      return res.status(400).json({ message: 'Email, password, name, and role_id are required' });
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+        role_id: parseInt(role_id),
+      },
       include: { role: true },
     });
-    const usersWithoutPassword = users.map(({ password, ...userWithoutPassword }) => userWithoutPassword);
-    res.json({ data: usersWithoutPassword });
+
+    const { password: _, ...userWithoutPassword } = user;
+    res.status(201).json({ data: userWithoutPassword });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -72,6 +143,52 @@ router.delete('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) 
     if (error.code === 'P2025') {
       return res.status(404).json({ message: 'User not found' });
     }
+    res.status(500).json({ message: error.message });
+  }
+});
+// PUT /users/:id (Admin only)
+router.put('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+
+    const { email, password, name, role_id } = req.body;
+    
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existingUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if email is being changed and is already in use
+    if (email && email !== existingUser.email) {
+      const emailInUse = await prisma.user.findUnique({ where: { email } });
+      if (emailInUse) {
+        return res.status(400).json({ message: 'Email already in use' });
+      }
+    }
+
+    const dataToUpdate: any = {
+      ...(email && { email }),
+      ...(name && { name }),
+      ...(role_id && { role_id: parseInt(role_id) }),
+    };
+
+    if (password) {
+      dataToUpdate.password = await bcrypt.hash(password, 10);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: dataToUpdate,
+      include: { role: true },
+    });
+
+    const { password: _, ...userWithoutPassword } = updatedUser;
+    res.json({ data: userWithoutPassword });
+  } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
 });
