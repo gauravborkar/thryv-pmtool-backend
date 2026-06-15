@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as authService from '../services/auth.service';
 import { logAction } from '../services/audit.service';
+import { sendPasswordResetEmail } from '../services/email.service';
 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   const { email, password } = req.body;
@@ -101,6 +102,13 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
     }
 
     const result = await authService.forgotPassword(email);
+
+    // Send the email with the reset token
+    try {
+      await sendPasswordResetEmail(email, result.token);
+    } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError);
+    }
 
     // Log successful forgot password request
     await logAction({
