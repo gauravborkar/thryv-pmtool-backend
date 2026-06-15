@@ -416,9 +416,13 @@ export async function assignTask(taskId: number, designerId: number, actionUserI
   return mapTask(task);
 }
 
-export async function addComment(taskId: number, userId: number, payload: CommentPayload) {
+export async function addComment(taskId: number, userId: number, role: string, payload: CommentPayload) {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new Error('Task not found');
+
+  if (!canViewTask(role, userId, task)) {
+    throw new Error('Forbidden: You do not have permission to access this task');
+  }
 
   const comment = await prisma.comment.create({
     data: {
@@ -516,6 +520,7 @@ export async function deleteTask(taskId: number) {
 export async function addTaskAttachment(
   taskId: number,
   userId: number,
+  role: string,
   payload: {
     fileName: string;
     fileUrl: string;
@@ -525,6 +530,10 @@ export async function addTaskAttachment(
 ) {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new Error('Task not found');
+
+  if (!canViewTask(role, userId, task)) {
+    throw new Error('Forbidden: You do not have permission to access this task');
+  }
 
   const attachment = await prisma.attachment.create({
     data: {
@@ -568,6 +577,13 @@ export async function deleteTaskAttachment(
   userId: number,
   role: string
 ) {
+  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  if (!task) throw new Error('Task not found');
+
+  if (!canViewTask(role, userId, task)) {
+    throw new Error('Forbidden: You do not have permission to access this task');
+  }
+
   const attachment = await prisma.attachment.findUnique({
     where: { id: attachmentId },
   });

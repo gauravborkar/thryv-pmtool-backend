@@ -1,6 +1,7 @@
 import { NextFunction, Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import * as taskService from '../services/task.service';
+import { validateFileSecurity, sanitizeInput } from '../lib/security';
 
 function getErrorStatus(error: unknown): number {
   const message = error instanceof Error ? error.message : '';
@@ -75,6 +76,10 @@ export const createTask = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'title and publishDate are required' });
     }
 
+    req.body.title = sanitizeInput(title);
+    if (req.body.brief) req.body.brief = sanitizeInput(req.body.brief);
+    if (req.body.postSpecs) req.body.postSpecs = sanitizeInput(req.body.postSpecs);
+
     const task = await taskService.createTask(req.body, req.user!.id);
     res.status(201).json({
       message: 'Task created successfully',
@@ -93,6 +98,10 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
     if (Number.isNaN(taskId)) {
       return res.status(400).json({ message: 'Invalid task ID' });
     }
+
+    if (req.body.title) req.body.title = sanitizeInput(req.body.title);
+    if (req.body.brief) req.body.brief = sanitizeInput(req.body.brief);
+    if (req.body.postSpecs) req.body.postSpecs = sanitizeInput(req.body.postSpecs);
 
     const task = await taskService.updateTask(taskId, req.body, req.user!.id);
     res.status(200).json({
@@ -167,12 +176,12 @@ export const addTaskComment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid task ID' });
     }
 
-    const content = String(req.body.content || '').trim();
+    const content = sanitizeInput(String(req.body.content || '').trim());
     if (!content) {
       return res.status(400).json({ message: 'Comment content is required' });
     }
 
-    const comment = await taskService.addComment(taskId, req.user!.id, { content });
+    const comment = await taskService.addComment(taskId, req.user!.id, req.user!.role, { content });
     res.status(201).json({
       message: 'Comment added successfully',
       data: comment,
@@ -192,7 +201,7 @@ export const updateTaskComment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid task/comment ID' });
     }
 
-    const content = String(req.body.content || '').trim();
+    const content = sanitizeInput(String(req.body.content || '').trim());
     if (!content) {
       return res.status(400).json({ message: 'Comment content is required' });
     }
@@ -280,6 +289,9 @@ export const addTaskAttachment = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ message: 'No file uploaded or fileUrl provided' });
       }
 
+      // SECURITY HARDENING: Early validation before actual upload
+      validateFileSecurity(req.file.originalname, req.file.size);
+
       const { storage } = await import('../lib/storage');
       const uploadResult = await storage.uploadFile({
         fileName: req.file.originalname,
@@ -294,7 +306,10 @@ export const addTaskAttachment = async (req: AuthRequest, res: Response) => {
       fileSize = req.file.size;
     }
 
-    const attachment = await taskService.addTaskAttachment(taskId, req.user!.id, {
+    // SECURITY HARDENING: Validate file size and type whitelists
+    validateFileSecurity(fileName, fileSize);
+
+    const attachment = await taskService.addTaskAttachment(taskId, req.user!.id, req.user!.role, {
       fileName,
       fileUrl,
       fileType,

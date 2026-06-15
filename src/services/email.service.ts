@@ -119,3 +119,64 @@ export const sendInvitationEmail = async (email: string, token: string) => {
     console.log('🔍 Preview URL:', preview);
   }
 };
+
+/**
+ * Generates a polished HTML email body for password reset emails.
+ */
+const generateResetPasswordHtml = (resetUrl: string) => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reset your password</title>
+  <style>
+    body {font-family: Arial, Helvetica, sans-serif; background-color: #f4f7f9; color: #333; padding: 20px;}
+    .container {max-width: 600px; margin: auto; background: #fff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
+    .button {display: inline-block; margin-top: 20px; padding: 12px 25px; background-color: #e63946; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;}
+    .footer {margin-top: 30px; font-size: 0.85em; color: #777;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Password Reset Request</h2>
+    <p>We received a request to reset your password for the <strong>Thryv PM Tool</strong>. Click the button below to set a new password.</p>
+    <a href="${resetUrl}" class="button">Reset Password</a>
+    <p style="margin-top:20px;">If the button doesn’t work, copy and paste the following URL into your browser:</p>
+    <p><a href="${resetUrl}">${resetUrl}</a></p>
+    <p class="footer">The reset link expires in 1 hour. If you didn’t request a password reset, you can safely ignore this email.</p>
+  </div>
+</body>
+</html>
+`;
+
+/**
+ * Sends a password reset email to the given address with the reset token.
+ * Throws an error if the email could not be sent.
+ */
+export const sendPasswordResetEmail = async (email: string, token: string) => {
+  const transporter = await getTransporter();
+  if (!transporter) {
+    throw new Error(
+      'Email is not configured. Set EMAIL_HOST, EMAIL_USER, and EMAIL_PASS on the server.',
+    );
+  }
+
+  const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+  const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM || 'no-reply@thryv.com',
+    to: email,
+    subject: 'Reset your password for Thryv PM Tool',
+    html: generateResetPasswordHtml(resetUrl),
+    text: `We received a request to reset your password for the Thryv PM Tool.\n\nVisit the following link to reset your password:\n${resetUrl}\n\nThe link expires in 1 hour. If you didn't request a reset, ignore this email.`,
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  console.log('📧 Password reset email sent (messageId=%s) to %s', info.messageId, email);
+  const preview = nodemailer.getTestMessageUrl(info);
+  if (preview) {
+    console.log('🔍 Preview URL:', preview);
+  }
+};

@@ -10,11 +10,18 @@ export const getPresignedUrl = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const { fileName, fileType, folder } = req.body;
+    const { fileName, fileType, folder, fileSize } = req.body;
     if (!fileName || !fileType) {
       return res.status(400).json({
         message: 'fileName and fileType are required in the request body.',
       });
+    }
+
+    const { validateFileSecurity } = await import('../lib/security');
+    try {
+      validateFileSecurity(fileName, fileSize ? Number(fileSize) : 0);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
     }
 
     const result = await storage.getSignedUploadUrl({
