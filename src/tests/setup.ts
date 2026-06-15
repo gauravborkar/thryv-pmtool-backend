@@ -17,7 +17,7 @@ jest.mock('ioredis', () => {
 // Mock BullMQ
 jest.mock('bullmq', () => ({
   Queue: jest.fn().mockImplementation(() => ({
-    add: jest.fn(),
+    add: jest.fn().mockResolvedValue({}),
   })),
   Worker: jest.fn().mockImplementation(() => ({
     on: jest.fn(),

@@ -91,6 +91,7 @@ model User {
   is_active              Boolean   @default(true)
   reset_password_token   String?   @unique
   reset_password_expires DateTime?
+  current_session_token  String?
   created_at             DateTime  @default(now())
   updated_at             DateTime  @updatedAt
 
