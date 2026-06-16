@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../lib/prisma';
 
 export const getDashboardMetrics = async (req: Request, res: Response) => {
@@ -84,6 +85,93 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
       ? 0.01 
       : Number(rawPercentage.toFixed(2));
 
+    const user = (req as AuthRequest).user;
+    let designerMetrics = undefined;
+
+    if (user && user.role.toUpperCase() === 'DESIGNER') {
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 7);
+
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+      const [
+        designerTotalTasks,
+        designerOpenTasks,
+        designerInProgressTasks,
+        designerDueTodayTasks,
+        designerDueThisWeekTasks,
+        designerAwaitingReviewTasks,
+        designerApprovedThisMonthTasks,
+        designerComments,
+        designerOverdueTasks,
+        designerCompletedTasks,
+        unreadCommentNotifications
+      ] = await Promise.all([
+        prisma.task.count({ where: { assigned_designer_id: user.id } }),
+        prisma.task.count({ where: { assigned_designer_id: user.id, status: { name: { in: ['TODO', 'BACKLOG', 'NOT_STARTED'] } } } }),
+        prisma.task.count({ where: { assigned_designer_id: user.id, status: { name: 'IN_PROGRESS' } } }),
+        prisma.task.count({ 
+          where: { 
+            assigned_designer_id: user.id, 
+            designer_due_date: { gte: today, lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) } 
+          } 
+        }),
+        prisma.task.count({ 
+          where: { 
+            assigned_designer_id: user.id, 
+            designer_due_date: { gte: startOfWeek, lt: endOfWeek } 
+          } 
+        }),
+        prisma.task.count({ where: { assigned_designer_id: user.id, status: { name: { in: ['REVIEW', 'UPLOADED'] } } } }),
+        prisma.task.count({ where: { assigned_designer_id: user.id, status: { name: 'APPROVED' }, updated_at: { gte: startOfMonth } } }),
+        prisma.comment.count({ where: { task: { assigned_designer_id: user.id }, author_id: { not: user.id } } }),
+        prisma.task.count({ 
+          where: { 
+            assigned_designer_id: user.id, 
+            designer_due_date: { lt: today }, 
+            status: { name: { notIn: ['DONE', 'APPROVED'] } } 
+          } 
+        }),
+        prisma.task.count({ where: { assigned_designer_id: user.id, status: { name: { in: ['DONE', 'APPROVED'] } } } }),
+        prisma.notification.findMany({
+          where: {
+            user_id: user.id,
+            type: 'COMMENT_ADDED',
+            is_read: false
+          },
+          orderBy: { created_at: 'desc' },
+          take: 10,
+          select: {
+            id: true,
+            message: true,
+            reference_id: true,
+            created_at: true
+          }
+        })
+      ]);
+
+      designerMetrics = {
+        totalTasks: designerTotalTasks,
+        openTasks: designerOpenTasks,
+        inProgressTasks: designerInProgressTasks,
+        dueToday: designerDueTodayTasks,
+        dueThisWeek: designerDueThisWeekTasks,
+        awaitingReview: designerAwaitingReviewTasks,
+        approvedThisMonth: designerApprovedThisMonthTasks,
+        comments: designerComments,
+        overdue: designerOverdueTasks,
+        completedTasks: designerCompletedTasks,
+        unreadCommentNotifications: unreadCommentNotifications.map(n => ({
+          id: n.id,
+          message: n.message,
+          referenceId: n.reference_id,
+          createdAt: n.created_at
+        }))
+      };
+    }
+
     res.json({
       success: true,
       data: {
@@ -96,7 +184,8 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
         totalPackages,
         storageProvider: process.env.STORAGE_PROVIDER || 'firebase',
         storageUsedGB: usedGB,
-        storagePercentage
+        storagePercentage,
+        designerMetrics
       }
     });
   } catch (error) {
