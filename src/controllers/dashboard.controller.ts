@@ -13,7 +13,9 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
       dueTodayTasks,
       totalTasks,
       completedTasks,
-      deliverablesAggregation
+      deliverablesAggregation,
+      totalPackages,
+      attachmentsAggregation
     ] = await Promise.all([
       // 1. Total active clients
       prisma.client.count({ where: { is_active: true } }),
@@ -57,6 +59,14 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
       // 7. Deliverables (sum of line items quantity)
       prisma.contentPackageLineItem.aggregate({
         _sum: { quantity: true }
+      }),
+
+      // 8. Total packages
+      prisma.contentPackage.count(),
+
+      // 9. Total storage used
+      prisma.attachment.aggregate({
+        _sum: { file_size: true }
       })
     ]);
 
@@ -66,6 +76,14 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
       
     const deliverables = deliverablesAggregation._sum.quantity || 0;
 
+    const usedBytes = attachmentsAggregation._sum.file_size || 0;
+    const usedGB = Number((usedBytes / (1024 * 1024 * 1024)).toFixed(3));
+    const capacityGB = 25;
+    const rawPercentage = (usedBytes / (capacityGB * 1024 * 1024 * 1024)) * 100;
+    const storagePercentage = rawPercentage > 0 && rawPercentage < 0.01 
+      ? 0.01 
+      : Number(rawPercentage.toFixed(2));
+
     res.json({
       success: true,
       data: {
@@ -74,7 +92,11 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
         activeDesigners,
         dueToday: dueTodayTasks,
         deliverables,
-        completionPercentage
+        completionPercentage,
+        totalPackages,
+        storageProvider: process.env.STORAGE_PROVIDER || 'firebase',
+        storageUsedGB: usedGB,
+        storagePercentage
       }
     });
   } catch (error) {
