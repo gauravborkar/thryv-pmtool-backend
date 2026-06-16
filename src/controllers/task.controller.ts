@@ -103,7 +103,7 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
     if (req.body.brief) req.body.brief = sanitizeInput(req.body.brief);
     if (req.body.postSpecs) req.body.postSpecs = sanitizeInput(req.body.postSpecs);
 
-    const task = await taskService.updateTask(taskId, req.body, req.user!.id);
+    const task = await taskService.updateTask(taskId, req.body, req.user!.role, req.user!.id);
     res.status(200).json({
       message: 'Task updated successfully',
       data: task,
@@ -157,7 +157,7 @@ export const assignTask = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Valid taskId and designerId are required' });
     }
 
-    const task = await taskService.assignTask(taskId, designerId, req.user!.id);
+    const task = await taskService.assignTask(taskId, designerId, req.user!.role, req.user!.id);
     res.status(200).json({
       message: 'Task assigned successfully',
       data: task,
@@ -247,7 +247,7 @@ export const deleteTask = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid task ID' });
     }
 
-    const deleted = await taskService.deleteTask(taskId);
+    const deleted = await taskService.deleteTask(taskId, req.user!.role, req.user!.id);
     res.status(200).json({
       message: 'Task deleted successfully',
       data: deleted,
