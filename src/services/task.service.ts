@@ -80,6 +80,7 @@ function includeTaskRelations() {
     calendar_entry: { include: { client: true } },
     assigned_designer: { select: { id: true, name: true, email: true } },
     created_by_manager: { select: { id: true, name: true, email: true } },
+    mentioned_users: { select: { id: true, name: true } },
     comments: {
       include: { author: { select: { id: true, name: true, email: true } } },
       orderBy: { created_at: 'asc' as const },
@@ -137,9 +138,12 @@ function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includ
   };
 }
 
-function canViewTask(role: string, userId: number, task: Task): boolean {
+function canViewTask(role: string, userId: number, task: Task & { mentioned_users?: { id: number }[] }): boolean {
   if (role === 'ADMIN' || role === 'MANAGER') return true;
-  if (role === 'DESIGNER') return task.assigned_designer_id === userId;
+  if (role === 'DESIGNER') {
+    if (task.assigned_designer_id === userId) return true;
+    if (task.mentioned_users?.some(u => u.id === userId)) return true;
+  }
   return false;
 }
 
@@ -147,7 +151,14 @@ export async function listTasks(filters: TaskFilters) {
   const where: Prisma.TaskWhereInput = {};
 
   if (filters.role === 'DESIGNER') {
-    where.assigned_designer_id = filters.userId;
+    where.AND = [
+      {
+        OR: [
+          { assigned_designer_id: filters.userId },
+          { mentioned_users: { some: { id: filters.userId } } }
+        ]
+      }
+    ];
   }
 
   if (filters.status) {
@@ -417,7 +428,10 @@ export async function assignTask(taskId: number, designerId: number, actionUserI
 }
 
 export async function addComment(taskId: number, userId: number, role: string, payload: CommentPayload) {
-  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  const task = await prisma.task.findUnique({ 
+    where: { id: taskId },
+    include: { mentioned_users: true }
+  });
   if (!task) throw new Error('Task not found');
 
   if (!canViewTask(role, userId, task)) {
@@ -432,6 +446,38 @@ export async function addComment(taskId: number, userId: number, role: string, p
     },
     include: { author: { select: { id: true, name: true, email: true } } },
   });
+
+  const mentionRegex = /@\[([^\]]+)\]\((\d+)\)/g;
+  const mentionedUserIds = new Set<number>();
+  let match;
+  while ((match = mentionRegex.exec(payload.content)) !== null) {
+    mentionedUserIds.add(Number(match[2]));
+  }
+
+  if (mentionedUserIds.size > 0) {
+    const idsToConnect = Array.from(mentionedUserIds).map(id => ({ id }));
+    await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        mentioned_users: {
+          connect: idsToConnect
+        }
+      }
+    });
+
+    for (const mId of mentionedUserIds) {
+      if (mId !== userId) {
+        await createNotification({
+          userId: mId,
+          title: 'Mentioned in a Comment',
+          message: `You were mentioned in a comment on task "${task.title}"`,
+          type: 'COMMENT_MENTION',
+          referenceId: taskId,
+          referenceType: 'Task'
+        });
+      }
+    }
+  }
 
   if (task.assigned_designer_id && userId === task.assigned_designer_id) {
     await createNotification({
