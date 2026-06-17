@@ -15,12 +15,14 @@ export interface PackageLineItemInput {
 
 export interface CreateContentPackageInput {
   name: string;
+  clientId?: number;
   description?: string;
   items: PackageLineItemInput[];
 }
 
 export interface UpdateContentPackageInput {
   name?: string;
+  clientId?: number;
   description?: string;
   items?: PackageLineItemInput[];
 }
@@ -57,6 +59,11 @@ interface NormalizedLineItem {
 }
 
 const packageInclude = {
+  client: {
+    select: {
+      name: true,
+    },
+  },
   created_by: {
     select: {
       id: true,
@@ -99,6 +106,7 @@ const versionInclude = {
 type PackageWithRelations = NonNullable<
   Awaited<ReturnType<typeof prisma.contentPackage.findFirst>>
 > & {
+  client?: { name: string } | null;
   created_by: { id: number; email: string; name: string };
   line_items: Array<{
     id: string;
@@ -231,6 +239,8 @@ function buildChangeSummary(
 export function formatContentPackage(pkg: PackageWithRelations) {
   return {
     id: pkg.id,
+    client_id: pkg.client_id,
+    client: pkg.client ? { name: pkg.client.name } : null,
     name: pkg.name,
     description: pkg.description ?? undefined,
     currentVersion: pkg.current_version,
@@ -569,6 +579,7 @@ export const createContentPackage = async (
   const createdPkg = await prisma.contentPackage.create({
     data: {
       name,
+      client_id: data.clientId,
       description: normalizeNotes(data.description) || null,
       created_by_id: user.id,
       current_version: 1,
@@ -662,6 +673,7 @@ export const updateContentPackage = async (
         where: { id },
         data: {
           name: nextName,
+          client_id: data.clientId !== undefined ? data.clientId : existing.client_id,
           description: nextDescription,
           current_version: nextVersion,
         },
@@ -752,6 +764,7 @@ export const updateContentPackage = async (
       where: { id },
       data: {
         name: nextName,
+        client_id: data.clientId !== undefined ? data.clientId : existing.client_id,
         description: nextDescription,
         current_version: nextVersion,
       },

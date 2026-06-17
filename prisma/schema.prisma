@@ -129,6 +129,7 @@ model Client {
   // Relations
   manager          User            @relation("ClientManager", fields: [manager_id], references: [id])
   packages         Package[]
+  content_packages ContentPackage[]
   calendar_entries CalendarEntry[]
   uploads          Attachment[]
   knowledge        ClientKnowledge[]
@@ -160,6 +161,7 @@ model Package {
 
 model ContentPackage {
   id              String   @id @default(uuid())
+  client_id       Int?
   name            String
   description     String?
   created_by_id   Int
@@ -167,6 +169,7 @@ model ContentPackage {
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
+  client     Client?                  @relation(fields: [client_id], references: [id])
   created_by User                     @relation(fields: [created_by_id], references: [id])
   line_items ContentPackageLineItem[]
   scheduledPosts ScheduledPost[]
@@ -174,6 +177,7 @@ model ContentPackage {
   distributionRule DistributionRule?
 
   @@index([created_by_id])
+  @@index([client_id])
   @@index([created_at])
   @@map("content_packages")
 }
