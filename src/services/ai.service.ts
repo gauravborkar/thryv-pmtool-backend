@@ -69,41 +69,62 @@ async function generateWithGroq(prompt: string): Promise<string> {
  * Build a context string from the dynamic ClientKnowledge tables.
  */
 export async function buildContext(client_id: number): Promise<string> {
+  let context = "";
+
+  // 1. Fetch Core Client Brand Context
+  const client = await prisma.client.findUnique({
+    where: { id: client_id },
+    select: { brand_details: true }
+  });
+
+  if (client?.brand_details) {
+    const brand = client.brand_details as any;
+    if (brand.aiProfileContext) {
+      context += `--- Client AI Profile Context ---\n${brand.aiProfileContext}\n\n`;
+    }
+    if (brand.briefGuidelines) {
+      context += `--- Creative Brief / Guidelines ---\n${brand.briefGuidelines}\n\n`;
+    }
+  }
+
+  // 2. Fetch Spreadsheet Knowledge
   const knowledgeSheets = await prisma.clientKnowledge.findMany({
     where: { client_id }
   });
 
-  if (knowledgeSheets.length === 0) {
+  if (knowledgeSheets.length === 0 && !context) {
     return "No prior context available for this client.";
   }
 
-  let context = "Context Information from the client's uploaded spreadsheets:\n\n";
-  const GLOBAL_MAX_CHARS = 10000; // ~2500 tokens total maximum
+  if (knowledgeSheets.length > 0) {
+    context += "--- Spreadsheet Context Information ---\n\n";
+    const GLOBAL_MAX_CHARS = 10000; // ~2500 tokens total maximum
 
-  for (const sheet of knowledgeSheets) {
-    if (context.length > GLOBAL_MAX_CHARS) {
-      context += "\n\n... [ADDITIONAL SHEETS TRUNCATED DUE TO STRICT AI TOKEN LIMITS]\n";
-      break;
-    }
+    for (const sheet of knowledgeSheets) {
+      if (context.length > GLOBAL_MAX_CHARS) {
+        context += "\n\n... [ADDITIONAL SHEETS TRUNCATED DUE TO STRICT AI TOKEN LIMITS]\n";
+        break;
+      }
 
-    context += `--- Sheet: ${sheet.sheet_name} ---\n`;
-    
-    // 1. If it's a large array, only take the first 10 rows
-    let sheetData = sheet.data as any;
-    if (Array.isArray(sheetData) && sheetData.length > 10) {
-      sheetData = sheetData.slice(0, 10);
+      context += `--- Sheet: ${sheet.sheet_name} ---\n`;
+      
+      // 1. If it's a large array, only take the first 10 rows
+      let sheetData = sheet.data as any;
+      if (Array.isArray(sheetData) && sheetData.length > 10) {
+        sheetData = sheetData.slice(0, 10);
+      }
+      
+      // 2. Stringify without formatting
+      let sheetStr = JSON.stringify(sheetData);
+      
+      // 3. Absolute hard cutoff per sheet
+      if (sheetStr.length > 2500) {
+        sheetStr = sheetStr.substring(0, 2500) + '... [TRUNCATED]';
+      }
+      
+      context += sheetStr;
+      context += "\n\n";
     }
-    
-    // 2. Stringify without formatting
-    let sheetStr = JSON.stringify(sheetData);
-    
-    // 3. Absolute hard cutoff per sheet
-    if (sheetStr.length > 2500) {
-      sheetStr = sheetStr.substring(0, 2500) + '... [TRUNCATED]';
-    }
-    
-    context += sheetStr;
-    context += "\n\n";
   }
 
   return context;
