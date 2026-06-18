@@ -53,6 +53,7 @@ model TaskType {
   created_at DateTime @default(now())
 
   tasks Task[]
+  tasks_many Task[] @relation("TaskToTaskTypes")
 
   @@map("task_types")
 }
@@ -303,6 +304,7 @@ model Task {
   calendar_entry     CalendarEntry? @relation(fields: [calendar_entry_id], references: [id])
   status             TaskStatus     @relation(fields: [status_id], references: [id])
   task_type          TaskType?      @relation(fields: [task_type_id], references: [id])
+  task_types         TaskType[]     @relation("TaskToTaskTypes")
   assigned_designer  User?          @relation("TaskDesigner", fields: [assigned_designer_id], references: [id])
   created_by_manager User           @relation("TaskCreator", fields: [created_by_manager_id], references: [id])
   comments           Comment[]

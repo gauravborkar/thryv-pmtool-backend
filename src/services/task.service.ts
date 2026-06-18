@@ -40,6 +40,7 @@ export type CreateTaskPayload = {
   assignedDesignerId?: number;
   status?: WorkflowStatus;
   taskTypeId?: number;
+  taskTypeIds?: number[];
   startDate?: string;
 };
 
@@ -50,6 +51,7 @@ export type UpdateTaskPayload = {
   publishDate?: string;
   priority?: number;
   taskTypeId?: number;
+  taskTypeIds?: number[];
   startDate?: string;
 };
 
@@ -82,6 +84,7 @@ function includeTaskRelations() {
   return {
     status: true,
     task_type: true,
+    task_types: true,
     calendar_entry: { include: { client: true } },
     assigned_designer: { select: { id: true, name: true, email: true } },
     created_by_manager: { select: { id: true, name: true, email: true } },
@@ -121,6 +124,8 @@ function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includ
           name: task.task_type.name,
         }
       : null,
+    taskTypeIds: task.task_types ? task.task_types.map(t => t.id) : [],
+    taskTypes: task.task_types ? task.task_types.map(t => ({ id: t.id, name: t.name })) : [],
     calendarEntryId: task.calendar_entry_id,
     client: task.calendar_entry?.client
       ? {
@@ -264,12 +269,18 @@ export async function createTask(payload: CreateTaskPayload, managerId: number) 
   const designerDueDate = addDays(publishDate, -2);
   const startDate = payload.startDate ? new Date(payload.startDate) : null;
 
+  const hasTaskTypeIds = payload.taskTypeIds && payload.taskTypeIds.length > 0;
+  const primaryTaskTypeId = hasTaskTypeIds ? Number(payload.taskTypeIds![0]) : (payload.taskTypeId ? Number(payload.taskTypeId) : null);
+
   const task = await prisma.task.create({
     data: {
       calendar_entry_id: payload.calendarEntryId,
       title: payload.title,
       status_id: status.id,
-      task_type_id: payload.taskTypeId ? Number(payload.taskTypeId) : null,
+      task_type_id: primaryTaskTypeId,
+      task_types: hasTaskTypeIds 
+        ? { connect: payload.taskTypeIds!.map(id => ({ id: Number(id) })) }
+        : (payload.taskTypeId ? { connect: [{ id: Number(payload.taskTypeId) }] } : undefined),
       priority: payload.priority ?? 2,
       start_date: startDate,
       publish_date: publishDate,
@@ -324,13 +335,23 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, rol
     ? (payload.startDate ? new Date(payload.startDate) : null)
     : existing.start_date;
 
+  const hasNewTaskTypeIds = payload.taskTypeIds !== undefined;
+  const newPrimaryTaskTypeId = hasNewTaskTypeIds 
+    ? (payload.taskTypeIds!.length > 0 ? Number(payload.taskTypeIds![0]) : null)
+    : (payload.taskTypeId !== undefined 
+        ? (payload.taskTypeId ? Number(payload.taskTypeId) : null) 
+        : existing.task_type_id);
+
   const task = await prisma.task.update({
     where: { id: taskId },
     data: {
       title: payload.title ?? existing.title,
-      task_type_id: payload.taskTypeId !== undefined 
-        ? (payload.taskTypeId ? Number(payload.taskTypeId) : null) 
-        : existing.task_type_id,
+      task_type_id: newPrimaryTaskTypeId,
+      task_types: hasNewTaskTypeIds
+        ? { set: payload.taskTypeIds!.map(id => ({ id: Number(id) })) }
+        : (payload.taskTypeId !== undefined 
+            ? (payload.taskTypeId ? { set: [{ id: Number(payload.taskTypeId) }] } : { set: [] }) 
+            : undefined),
       priority: payload.priority ?? existing.priority,
       start_date: startDate,
       publish_date: publishDate,
