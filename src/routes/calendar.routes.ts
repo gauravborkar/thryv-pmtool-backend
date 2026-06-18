@@ -201,6 +201,8 @@ router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res)
       status = 'NOT_STARTED',
       priority = 2,
       assignedDesignerId,
+      taskTypeId,
+      startDate,
     } = req.body;
 
     if (!clientId || !date || !title) {
@@ -231,6 +233,8 @@ router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res)
         title: String(title),
         status_id: statusRow.id,
         priority: Number(priority) || 2,
+        task_type_id: taskTypeId ? Number(taskTypeId) : null,
+        start_date: startDate ? new Date(String(startDate)) : null,
         publish_date: publishDate,
         designer_due_date: designerDueDate,
         assigned_designer_id: assignedDesignerId ? Number(assignedDesignerId) : null,

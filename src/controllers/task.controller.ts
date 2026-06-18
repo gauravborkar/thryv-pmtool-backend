@@ -353,3 +353,17 @@ export const deleteTaskAttachment = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const getTaskTypes = async (req: AuthRequest, res: Response) => {
+  try {
+    const types = await taskService.getTaskTypes();
+    res.status(200).json({
+      message: 'Task types retrieved successfully',
+      data: types,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error instanceof Error ? error.message : 'Failed to retrieve task types',
+    });
+  }
+};
+

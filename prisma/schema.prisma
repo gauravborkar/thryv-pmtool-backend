@@ -47,6 +47,16 @@ model TaskStatus {
   @@map("task_statuses")
 }
 
+model TaskType {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  created_at DateTime @default(now())
+
+  tasks Task[]
+
+  @@map("task_types")
+}
+
 model ContentType {
   id         Int      @id @default(autoincrement())
   name       String   @unique
@@ -279,7 +289,9 @@ model Task {
   calendar_entry_id     Int?     @unique
   title                 String
   status_id             Int
+  task_type_id          Int?
   priority              Int      @default(2)
+  start_date            DateTime?
   designer_due_date     DateTime
   publish_date          DateTime
   assigned_designer_id  Int?
@@ -290,6 +302,7 @@ model Task {
   // Relations
   calendar_entry     CalendarEntry? @relation(fields: [calendar_entry_id], references: [id])
   status             TaskStatus     @relation(fields: [status_id], references: [id])
+  task_type          TaskType?      @relation(fields: [task_type_id], references: [id])
   assigned_designer  User?          @relation("TaskDesigner", fields: [assigned_designer_id], references: [id])
   created_by_manager User           @relation("TaskCreator", fields: [created_by_manager_id], references: [id])
   comments           Comment[]
@@ -298,6 +311,7 @@ model Task {
   // Indexes
   @@index([assigned_designer_id])
   @@index([status_id])
+  @@index([task_type_id])
   @@index([publish_date])
   @@index([priority])
   @@index([created_by_manager_id])
