@@ -73,7 +73,7 @@ export async function buildContext(client_id: number): Promise<string> {
     where: { client_id }
   });
 
-  if (knowledgeSheets.length === 0) {
+  if (!knowledgeSheets || knowledgeSheets.length === 0) {
     return "No prior context available for this client.";
   }
 

@@ -169,7 +169,7 @@ describe('Core Flows E2E Tests', () => {
         uploads: []
       };
 
-      prismaMock.task.create.mockResolvedValue(mockTask);
+      prismaMock.task.create.mockResolvedValue(mockTask as any);
 
       const res = await request(app)
         .post('/tasks')
