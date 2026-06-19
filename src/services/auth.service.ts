@@ -18,10 +18,20 @@ export const comparePassword = async (password: string, hash: string): Promise<b
 };
 
 export const generateTokens = (user: any) => {
+  const roleNames: string[] = (user.roles ?? []).map((r: any) => r.name);
+  const permissions: string[] = [
+    ...new Set(
+      (user.roles ?? []).flatMap((r: any) =>
+        (r.permissions ?? []).map((p: any) => p.name)
+      )
+    ),
+  ] as string[];
+
   const payload = {
     id: user.id,
     email: user.email,
-    role: user.role.name,
+    roles: roleNames,
+    permissions,
   };
 
   const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
@@ -33,7 +43,9 @@ export const generateTokens = (user: any) => {
 export const login = async (email: string, password: string) => {
   const user = await prisma.user.findUnique({
     where: { email },
-    include: { role: true },
+    include: {
+      roles: { include: { permissions: true } },
+    },
   });
 
   if (!user) {
@@ -81,16 +93,18 @@ export const register = async (userData: any) => {
   const hashedPasswordStr = await hashPassword(password);
   const sessionToken = crypto.randomUUID();
 
-  // Create user with the role pre-assigned in the invitation or default role
+  // Create user with roles pre-assigned from the invitation or default role
   const user = await prisma.user.create({
     data: {
       email,
       password: hashedPasswordStr,
       name,
-      role_id: assignedRoleId,
+      roles: { connect: [{ id: assignedRoleId }] },
       current_session_token: sessionToken,
     },
-    include: { role: true },
+    include: {
+      roles: { include: { permissions: true } },
+    },
   });
 
   if (inviteToken) {
@@ -110,7 +124,9 @@ export const refresh = async (refreshToken: string) => {
     
     const user = await prisma.user.findUnique({
       where: { id: payload.id },
-      include: { role: true },
+      include: {
+        roles: { include: { permissions: true } },
+      },
     });
 
     if (!user || !user.is_active) {

@@ -17,7 +17,7 @@ const STATUS_FLOW = [
 type WorkflowStatus = (typeof STATUS_FLOW)[number];
 
 export type TaskFilters = {
-  role: string;
+  roles: string[];
   userId: number;
   sortBy?: 'dueDate' | 'status' | 'client' | 'designer' | 'designerDue';
   sortOrder?: 'asc' | 'desc';
@@ -155,19 +155,26 @@ function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includ
   };
 }
 
-function canViewTask(role: string, userId: number, task: Task): boolean {
-  if (role === 'ADMIN') return true;
-  if (role === 'MANAGER') return task.created_by_manager_id === userId;
-  if (role === 'DESIGNER') return task.assigned_designer_id === userId;
+/** Worker roles that can be assigned to tasks */
+const WORKER_ROLES = ['DESIGNER', 'VIDEOGRAPHER', 'EDITOR'];
+
+function canViewTask(roles: string[], userId: number, task: Task): boolean {
+  if (roles.includes('ADMIN')) return true;
+  if (roles.includes('MANAGER')) return task.created_by_manager_id === userId;
+  if (roles.some((r) => WORKER_ROLES.includes(r))) return task.assigned_designer_id === userId;
   return false;
 }
 
 export async function listTasks(filters: TaskFilters) {
   const where: Prisma.TaskWhereInput = {};
 
-  if (filters.role === 'DESIGNER') {
+  const isWorker = filters.roles.some((r) => WORKER_ROLES.includes(r));
+  const isManager = filters.roles.includes('MANAGER');
+  const isAdmin = filters.roles.includes('ADMIN');
+
+  if (isWorker && !isManager && !isAdmin) {
     where.assigned_designer_id = filters.userId;
-  } else if (filters.role === 'MANAGER') {
+  } else if (isManager && !isAdmin) {
     where.created_by_manager_id = filters.userId;
   }
 
@@ -245,7 +252,7 @@ export async function listTasks(filters: TaskFilters) {
   }
 }
 
-export async function getTaskById(taskId: number, role: string, userId: number) {
+export async function getTaskById(taskId: number, roles: string[], userId: number) {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: includeTaskRelations(),
@@ -255,7 +262,7 @@ export async function getTaskById(taskId: number, role: string, userId: number) 
     throw new Error('Task not found');
   }
 
-  if (!canViewTask(role, userId, task)) {
+  if (!canViewTask(roles, userId, task)) {
     throw new Error('Forbidden: You do not have permission to access this task');
   }
 
@@ -316,14 +323,18 @@ export async function createTask(payload: CreateTaskPayload, managerId: number) 
   return mapTask(task);
 }
 
-export async function updateTask(taskId: number, payload: UpdateTaskPayload, role: string, userId: number) {
+export async function updateTask(taskId: number, payload: UpdateTaskPayload, roles: string[], userId: number) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
   if (!existing) throw new Error('Task not found');
 
-  if (role === 'MANAGER' && existing.created_by_manager_id !== userId) {
+  const isAdmin = roles.includes('ADMIN');
+  const isManager = roles.includes('MANAGER');
+  const isWorker = roles.some((r) => WORKER_ROLES.includes(r));
+
+  if (isManager && !isAdmin && existing.created_by_manager_id !== userId) {
     throw new Error('Forbidden: You do not have permission to update this task');
   }
-  if (role === 'DESIGNER' && existing.assigned_designer_id !== userId) {
+  if (isWorker && !isManager && !isAdmin && existing.assigned_designer_id !== userId) {
     throw new Error('Forbidden: You do not have permission to update this task');
   }
 
@@ -388,13 +399,17 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, rol
 export async function updateTaskStatus(
   taskId: number,
   statusName: WorkflowStatus,
-  role: string,
+  roles: string[],
   userId: number
 ) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
   if (!existing) throw new Error('Task not found');
 
-  if (role === 'DESIGNER' && existing.assigned_designer_id !== userId) {
+  const isWorker = roles.some((r) => WORKER_ROLES.includes(r));
+  const isManager = roles.includes('MANAGER');
+  const isAdmin = roles.includes('ADMIN');
+
+  if (isWorker && !isManager && !isAdmin && existing.assigned_designer_id !== userId) {
     throw new Error('Forbidden: You can only update your assigned tasks');
   }
 
@@ -432,21 +447,24 @@ export async function updateTaskStatus(
   return mapTask(task);
 }
 
-export async function assignTask(taskId: number, designerId: number, role: string, actionUserId?: number) {
+export async function assignTask(taskId: number, designerId: number, roles: string[], actionUserId?: number) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
   if (!existing) throw new Error('Task not found');
 
-  if (role === 'MANAGER' && existing.created_by_manager_id !== actionUserId) {
+  const isAdmin = roles.includes('ADMIN');
+  const isManager = roles.includes('MANAGER');
+
+  if (isManager && !isAdmin && existing.created_by_manager_id !== actionUserId) {
     throw new Error('Forbidden: You do not have permission to assign this task');
   }
 
   const designer = await prisma.user.findUnique({
     where: { id: designerId },
-    include: { role: true },
+    include: { roles: true },
   });
 
-  if (!designer || designer.role.name !== 'DESIGNER') {
-    throw new Error('Assigned user must be a designer');
+  if (!designer || !designer.roles.some((r) => WORKER_ROLES.includes(r.name))) {
+    throw new Error('Assigned user must be a designer, videographer, or editor');
   }
 
   const task = await prisma.task.update({
@@ -473,11 +491,11 @@ export async function assignTask(taskId: number, designerId: number, role: strin
   return mapTask(task);
 }
 
-export async function addComment(taskId: number, userId: number, role: string, payload: CommentPayload) {
+export async function addComment(taskId: number, userId: number, roles: string[], payload: CommentPayload) {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new Error('Task not found');
 
-  if (!canViewTask(role, userId, task)) {
+  if (!canViewTask(roles, userId, task)) {
     throw new Error('Forbidden: You do not have permission to access this task');
   }
 
@@ -518,8 +536,8 @@ export async function addComment(taskId: number, userId: number, role: string, p
   };
 }
 
-function canManageComment(role: string, commentAuthorId: number, userId: number): boolean {
-  if (role === 'ADMIN' || role === 'MANAGER') return true;
+function canManageComment(roles: string[], commentAuthorId: number, userId: number): boolean {
+  if (roles.includes('ADMIN') || roles.includes('MANAGER')) return true;
   return commentAuthorId === userId;
 }
 
@@ -527,12 +545,12 @@ export async function updateComment(
   taskId: number,
   commentId: number,
   userId: number,
-  role: string,
+  roles: string[],
   payload: CommentPayload
 ) {
   const comment = await prisma.comment.findUnique({ where: { id: commentId } });
   if (!comment || comment.task_id !== taskId) throw new Error('Comment not found');
-  if (!canManageComment(role, comment.author_id, userId)) {
+  if (!canManageComment(roles, comment.author_id, userId)) {
     throw new Error('Forbidden: You do not have permission to edit this comment');
   }
 
@@ -554,11 +572,11 @@ export async function deleteComment(
   taskId: number,
   commentId: number,
   userId: number,
-  role: string
+  roles: string[]
 ) {
   const comment = await prisma.comment.findUnique({ where: { id: commentId } });
   if (!comment || comment.task_id !== taskId) throw new Error('Comment not found');
-  if (!canManageComment(role, comment.author_id, userId)) {
+  if (!canManageComment(roles, comment.author_id, userId)) {
     throw new Error('Forbidden: You do not have permission to delete this comment');
   }
 
@@ -566,11 +584,14 @@ export async function deleteComment(
   return { id: commentId };
 }
 
-export async function deleteTask(taskId: number, role: string, userId: number) {
+export async function deleteTask(taskId: number, roles: string[], userId: number) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
   if (!existing) throw new Error('Task not found');
 
-  if (role === 'MANAGER' && existing.created_by_manager_id !== userId) {
+  const isAdmin = roles.includes('ADMIN');
+  const isManager = roles.includes('MANAGER');
+
+  if (isManager && !isAdmin && existing.created_by_manager_id !== userId) {
     throw new Error('Forbidden: You do not have permission to delete this task');
   }
 
@@ -581,7 +602,7 @@ export async function deleteTask(taskId: number, role: string, userId: number) {
 export async function addTaskAttachment(
   taskId: number,
   userId: number,
-  role: string,
+  roles: string[],
   payload: {
     fileName: string;
     fileUrl: string;
@@ -592,7 +613,7 @@ export async function addTaskAttachment(
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new Error('Task not found');
 
-  if (!canViewTask(role, userId, task)) {
+  if (!canViewTask(roles, userId, task)) {
     throw new Error('Forbidden: You do not have permission to access this task');
   }
 
@@ -636,12 +657,12 @@ export async function deleteTaskAttachment(
   taskId: number,
   attachmentId: number,
   userId: number,
-  role: string
+  roles: string[]
 ) {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new Error('Task not found');
 
-  if (!canViewTask(role, userId, task)) {
+  if (!canViewTask(roles, userId, task)) {
     throw new Error('Forbidden: You do not have permission to access this task');
   }
 
@@ -654,7 +675,7 @@ export async function deleteTaskAttachment(
 
   // Auth check: Admin/Manager or the owner who uploaded it
   const isOwner = attachment.uploaded_by === userId;
-  const isAdminOrManager = ['ADMIN', 'MANAGER'].includes(role);
+  const isAdminOrManager = roles.some((r) => ['ADMIN', 'MANAGER'].includes(r));
   if (!isOwner && !isAdminOrManager) {
     throw new Error('Forbidden: You do not have permission to delete this attachment');
   }

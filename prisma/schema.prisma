@@ -10,14 +10,27 @@ datasource db {
 // ==================== LOOKUP TABLES ====================
 
 model UserRole {
-  id         Int      @id @default(autoincrement())
-  name       String   @unique
-  created_at DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  created_at  DateTime @default(now())
 
   users       User[]
   invitations Invitation[]
+  permissions Permission[]
 
   @@map("user_roles")
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique  // e.g. "task:create", "task:assign"
+  description String?
+  created_at  DateTime @default(now())
+
+  roles UserRole[]
+
+  @@map("permissions")
 }
 
 model Invitation {
@@ -98,7 +111,6 @@ model User {
   email      String   @unique
   password   String
   name       String
-  role_id    Int
   is_active              Boolean   @default(true)
   reset_password_token   String?   @unique
   reset_password_expires DateTime?
@@ -107,7 +119,7 @@ model User {
   updated_at             DateTime  @updatedAt
 
   // Relations
-  role            UserRole @relation(fields: [role_id], references: [id])
+  roles           UserRole[]
   managed_clients Client[] @relation("ClientManager")
   assigned_tasks  Task[]   @relation("TaskDesigner")
   created_tasks   Task[]   @relation("TaskCreator")
@@ -119,7 +131,6 @@ model User {
   notifications            Notification[]
 
   // Indexes
-  @@index([role_id])
   @@index([email])
   @@index([is_active])
   @@map("users")
