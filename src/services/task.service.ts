@@ -138,12 +138,10 @@ function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includ
   };
 }
 
-function canViewTask(role: string, userId: number, task: Task & { mentioned_users?: { id: number }[] }): boolean {
-  if (role === 'ADMIN' || role === 'MANAGER') return true;
-  if (role === 'DESIGNER') {
-    if (task.assigned_designer_id === userId) return true;
-    if (task.mentioned_users?.some(u => u.id === userId)) return true;
-  }
+function canViewTask(role: string, userId: number, task: Task): boolean {
+  if (role === 'ADMIN') return true;
+  if (role === 'MANAGER') return task.created_by_manager_id === userId;
+  if (role === 'DESIGNER') return task.assigned_designer_id === userId;
   return false;
 }
 
@@ -159,10 +157,6 @@ export async function listTasks(filters: TaskFilters) {
         ]
       }
     ];
-  }
-
-  if (filters.status) {
-    where.status = { name: filters.status.toUpperCase() };
   }
 
   if (filters.clientId) {
@@ -297,9 +291,16 @@ export async function createTask(payload: CreateTaskPayload, managerId: number) 
   return mapTask(task);
 }
 
-export async function updateTask(taskId: number, payload: UpdateTaskPayload, managerId: number) {
+export async function updateTask(taskId: number, payload: UpdateTaskPayload, role: string, userId: number) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
   if (!existing) throw new Error('Task not found');
+
+  if (role === 'MANAGER' && existing.created_by_manager_id !== userId) {
+    throw new Error('Forbidden: You do not have permission to update this task');
+  }
+  if (role === 'DESIGNER' && existing.assigned_designer_id !== userId) {
+    throw new Error('Forbidden: You do not have permission to update this task');
+  }
 
   const publishDate = payload.publishDate
     ? new Date(payload.publishDate)
@@ -313,7 +314,6 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, man
       priority: payload.priority ?? existing.priority,
       publish_date: publishDate,
       designer_due_date: designerDueDate,
-      created_by_manager_id: managerId,
     },
     include: includeTaskRelations(),
   });
@@ -390,9 +390,13 @@ export async function updateTaskStatus(
   return mapTask(task);
 }
 
-export async function assignTask(taskId: number, designerId: number, actionUserId?: number) {
+export async function assignTask(taskId: number, designerId: number, role: string, actionUserId?: number) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
   if (!existing) throw new Error('Task not found');
+
+  if (role === 'MANAGER' && existing.created_by_manager_id !== actionUserId) {
+    throw new Error('Forbidden: You do not have permission to assign this task');
+  }
 
   const designer = await prisma.user.findUnique({
     where: { id: designerId },
@@ -555,9 +559,13 @@ export async function deleteComment(
   return { id: commentId };
 }
 
-export async function deleteTask(taskId: number) {
+export async function deleteTask(taskId: number, role: string, userId: number) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
   if (!existing) throw new Error('Task not found');
+
+  if (role === 'MANAGER' && existing.created_by_manager_id !== userId) {
+    throw new Error('Forbidden: You do not have permission to delete this task');
+  }
 
   await prisma.task.delete({ where: { id: taskId } });
   return { id: taskId };

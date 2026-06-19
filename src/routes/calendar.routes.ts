@@ -155,16 +155,27 @@ router.get('/', authenticate, async (req, res) => {
         ? parseISO(month.length === 7 ? `${month}-01` : month)
         : null;
 
+    const userRole = (req as any).user.role;
+    const userId = (req as any).user.id;
+
+    const where: any = {
+      client_id: client_id ? Number(client_id) : undefined,
+      date: monthDate
+        ? {
+            gte: startOfMonth(monthDate),
+            lte: endOfMonth(monthDate),
+          }
+        : undefined,
+    };
+
+    if (userRole === 'DESIGNER') {
+      where.task = { assigned_designer_id: userId };
+    } else if (userRole === 'MANAGER') {
+      where.task = { created_by_manager_id: userId };
+    }
+
     const entries = await prisma.calendarEntry.findMany({
-      where: {
-        client_id: client_id ? Number(client_id) : undefined,
-        date: monthDate
-          ? {
-              gte: startOfMonth(monthDate),
-              lte: endOfMonth(monthDate),
-            }
-          : undefined,
-      },
+      where,
       include: { client: true, task: { include: { status: true } } },
       orderBy: { date: 'asc' },
     });
