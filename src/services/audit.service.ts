@@ -37,7 +37,7 @@ export const logAction = async (data: LogActionData) => {
             id: true,
             name: true,
             email: true,
-            role: {
+            roles: {
               select: {
                 name: true,
               },
@@ -85,7 +85,7 @@ export const getAuditLogs = async (filters: GetAuditLogsFilter = {}) => {
             id: true,
             name: true,
             email: true,
-            role: {
+            roles: {
               select: {
                 name: true,
               },
