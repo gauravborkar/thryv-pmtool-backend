@@ -40,6 +40,14 @@ export function initializeSocket(server: HttpServer) {
       socket.leave(`channel_${channelId}`);
     });
 
+    socket.on('typing_start', ({ channelId, userName }: { channelId: number, userName: string }) => {
+      socket.to(`channel_${channelId}`).emit('user_typing', { userName });
+    });
+
+    socket.on('typing_end', ({ channelId, userName }: { channelId: number, userName: string }) => {
+      socket.to(`channel_${channelId}`).emit('user_stopped_typing', { userName });
+    });
+
     socket.on('disconnect', () => {
       console.log(`Socket disconnected: ${socket.id}`);
     });
