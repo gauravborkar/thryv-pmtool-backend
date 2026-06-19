@@ -41,6 +41,24 @@ async function main() {
     });
   }
 
+  // Seed Task Types
+  console.log('Seeding task types...');
+  const taskTypes = [
+    { name: 'Social Media' },
+    { name: 'Video Production' },
+    { name: 'Graphic Design' },
+    { name: 'Copywriting' },
+    { name: 'Email Marketing' }
+  ];
+
+  for (const type of taskTypes) {
+    await prisma.taskType.upsert({
+      where: { name: type.name },
+      update: {},
+      create: type,
+    });
+  }
+
   // 3. Seed Package Builder lookups
   console.log('Seeding package builder lookups...');
   const contentTypes = [

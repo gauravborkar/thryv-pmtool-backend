@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import path from 'path'
-import { cacheMiddleware } from './middleware/cache.middleware'
+import { cacheMiddleware, invalidateCacheMiddleware } from './middleware/cache.middleware'
 import './lib/queue' // Initialize queue workers
 
 dotenv.config()
@@ -48,17 +48,18 @@ app.patch('/distribution/posts/:postId/unlock', unlockPost);
 
 app.use('/auth', authRoutes)
 app.use('/users', cacheMiddleware(60), userRoutes)
-app.use('/clients', cacheMiddleware(60), clientRoutes)
-app.use('/tasks', cacheMiddleware(60), taskRoutes)
-app.use('/calendar', cacheMiddleware(60), calendarRoutes)
+app.use('/clients', invalidateCacheMiddleware(['/calendar', '/tasks']), cacheMiddleware(60), clientRoutes)
+app.use('/tasks', invalidateCacheMiddleware(['/calendar']), cacheMiddleware(60), taskRoutes)
+app.use('/calendar', invalidateCacheMiddleware(['/tasks']), cacheMiddleware(60), calendarRoutes)
 app.use('/invitations', cacheMiddleware(60), invitationRoutes)
 app.use('/audit', cacheMiddleware(60), auditRoutes)
-app.use('/packages', cacheMiddleware(60), packageRoutes)
-app.use('/notifications', cacheMiddleware(30), notificationRoutes)
+app.use('/packages', invalidateCacheMiddleware(), cacheMiddleware(60), packageRoutes)
+app.use('/notifications', invalidateCacheMiddleware(), cacheMiddleware(30), notificationRoutes)
 app.use('/storage', uploadRoutes)
 app.use('/settings', settingsRoutes)
 app.use('/dashboard', cacheMiddleware(30), dashboardRoutes)
 app.use('/chat', chatRoutes)
+app.use('/dashboard', invalidateCacheMiddleware(), cacheMiddleware(30), dashboardRoutes)
 
 export default app
 

@@ -11,6 +11,7 @@ const router = Router();
  * @access Private (All roles)
  */
 router.get('/', authenticate, taskController.getTasks);
+router.get('/types', authenticate, taskController.getTaskTypes);
 router.get('/:id', authenticate, taskController.getTaskById);
 
 /**

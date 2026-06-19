@@ -25,7 +25,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
       prisma.user.count({ 
         where: { 
           is_active: true, 
-          role: { name: { equals: 'Manager', mode: 'insensitive' } } 
+          roles: { some: { name: { equals: 'Manager', mode: 'insensitive' } } } 
         } 
       }),
 
@@ -33,7 +33,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
       prisma.user.count({ 
         where: { 
           is_active: true, 
-          role: { name: { equals: 'Designer', mode: 'insensitive' } } 
+          roles: { some: { name: { equals: 'Designer', mode: 'insensitive' } } } 
         } 
       }),
 
@@ -88,7 +88,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
     const user = (req as AuthRequest).user;
     let designerMetrics = undefined;
 
-    if (user && user.role.toUpperCase() === 'DESIGNER') {
+    if (user && user.roles.some((r) => ['DESIGNER', 'VIDEOGRAPHER', 'EDITOR'].includes(r.toUpperCase()))) {
       const startOfWeek = new Date(today);
       startOfWeek.setDate(today.getDate() - today.getDay());
       const endOfWeek = new Date(startOfWeek);

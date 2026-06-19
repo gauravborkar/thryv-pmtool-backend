@@ -176,7 +176,7 @@ router.get('/', authenticate, async (req, res) => {
 
     const entries = await prisma.calendarEntry.findMany({
       where,
-      include: { client: true, task: { include: { status: true } } },
+      include: { client: true, task: { include: { status: true, task_type: true, task_types: true } } },
       orderBy: { date: 'asc' },
     });
 
@@ -201,6 +201,9 @@ router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res)
       status = 'NOT_STARTED',
       priority = 2,
       assignedDesignerId,
+      taskTypeId,
+      taskTypeIds,
+      startDate,
     } = req.body;
 
     if (!clientId || !date || !title) {
@@ -225,12 +228,20 @@ router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res)
       },
     });
 
+    const hasTaskTypeIds = taskTypeIds && Array.isArray(taskTypeIds) && taskTypeIds.length > 0;
+    const primaryTaskTypeId = hasTaskTypeIds ? Number(taskTypeIds[0]) : (taskTypeId ? Number(taskTypeId) : null);
+
     const task = await prisma.task.create({
       data: {
         calendar_entry_id: entry.id,
         title: String(title),
         status_id: statusRow.id,
         priority: Number(priority) || 2,
+        task_type_id: primaryTaskTypeId,
+        task_types: hasTaskTypeIds 
+          ? { connect: taskTypeIds.map((id: any) => ({ id: Number(id) })) }
+          : (taskTypeId ? { connect: [{ id: Number(taskTypeId) }] } : undefined),
+        start_date: startDate ? new Date(String(startDate)) : null,
         publish_date: publishDate,
         designer_due_date: designerDueDate,
         assigned_designer_id: assignedDesignerId ? Number(assignedDesignerId) : null,

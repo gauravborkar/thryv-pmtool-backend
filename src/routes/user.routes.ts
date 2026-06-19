@@ -23,7 +23,7 @@ router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
       ];
     }
     if (role && role !== 'ALL') {
-      where.role = { name: role };
+      where.roles = { some: { name: role } };
     }
 
     const [users, total] = await Promise.all([
@@ -32,7 +32,7 @@ router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
         skip,
         take: limit,
         orderBy: { created_at: 'desc' },
-        include: { role: true },
+        include: { roles: { include: { permissions: true } } },
       }),
       prisma.user.count({ where }),
     ]);
@@ -58,10 +58,14 @@ import bcrypt from 'bcryptjs';
 // POST /users (Admin only)
 router.post('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
   try {
-    const { email, password, name, role_id } = req.body;
+    const { email, password, name, role_ids } = req.body;
+    // Support legacy role_id (single) or new role_ids (array)
+    const roleIds: number[] = role_ids
+      ? (Array.isArray(role_ids) ? role_ids : [role_ids]).map(Number)
+      : (req.body.role_id ? [Number(req.body.role_id)] : []);
     
-    if (!email || !password || !name || !role_id) {
-      return res.status(400).json({ message: 'Email, password, name, and role_id are required' });
+    if (!email || !password || !name || roleIds.length === 0) {
+      return res.status(400).json({ message: 'Email, password, name, and at least one role are required' });
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -76,9 +80,9 @@ router.post('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
         email,
         password: hashedPassword,
         name,
-        role_id: parseInt(role_id),
+        roles: { connect: roleIds.map((id) => ({ id })) },
       },
-      include: { role: true },
+      include: { roles: { include: { permissions: true } } },
     });
 
     const { password: _, ...userWithoutPassword } = user;
@@ -93,7 +97,7 @@ router.get('/me', authenticate, async (req: any, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      include: { role: true },
+      include: { roles: { include: { permissions: true } } },
     });
 
     if (!user) {
@@ -111,8 +115,11 @@ router.get('/me', authenticate, async (req: any, res) => {
 router.get('/designers', authenticate, authorize(['ADMIN', 'MANAGER']), async (_req: any, res) => {
   try {
     const designers = await prisma.user.findMany({
-      where: { role: { name: 'DESIGNER' }, is_active: true },
-      select: { id: true, name: true, email: true },
+      where: {
+        roles: { some: { name: { in: ['DESIGNER', 'VIDEOGRAPHER', 'EDITOR'] } } },
+        is_active: true,
+      },
+      select: { id: true, name: true, email: true, roles: { select: { id: true, name: true } } },
       orderBy: { name: 'asc' },
     });
     res.json({ data: designers });
@@ -168,7 +175,11 @@ router.put('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => 
       return res.status(400).json({ message: 'Invalid user ID' });
     }
 
-    const { email, password, name, role_id } = req.body;
+    const { email, password, name, role_ids } = req.body;
+    // Support legacy role_id (single) or new role_ids (array)
+    const roleIds: number[] | undefined = role_ids
+      ? (Array.isArray(role_ids) ? role_ids : [role_ids]).map(Number)
+      : (req.body.role_id !== undefined ? [Number(req.body.role_id)] : undefined);
     
     // Check if user exists
     const existingUser = await prisma.user.findUnique({ where: { id: userId } });
@@ -187,7 +198,7 @@ router.put('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => 
     const dataToUpdate: any = {
       ...(email && { email }),
       ...(name && { name }),
-      ...(role_id && { role_id: parseInt(role_id) }),
+      ...(roleIds && { roles: { set: roleIds.map((id) => ({ id })) } }),
     };
 
     if (password) {
@@ -197,7 +208,7 @@ router.put('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: dataToUpdate,
-      include: { role: true },
+      include: { roles: { include: { permissions: true } } },
     });
 
     const { password: _, ...userWithoutPassword } = updatedUser;
