@@ -46,13 +46,14 @@ export async function getChannels(req: AuthRequest, res: Response) {
 export async function createChannel(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
-    const userRole = req.user?.role;
+    const userRoles = req.user?.roles || [];
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
     const { name, type, memberIds } = req.body; // memberIds: number[]
     const channelType = type || 'GROUP';
 
-    if (channelType !== 'DIRECT' && !['ADMIN', 'MANAGER'].includes(userRole as string)) {
+    const hasManagerOrAdminRole = userRoles.some(r => ['ADMIN', 'MANAGER'].includes(r));
+    if (channelType !== 'DIRECT' && !hasManagerOrAdminRole) {
       return res.status(403).json({ message: 'Only Admins and Managers can create group channels' });
     }
 

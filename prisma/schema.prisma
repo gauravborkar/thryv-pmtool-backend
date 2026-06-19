@@ -24,7 +24,7 @@ model UserRole {
 
 model Permission {
   id          Int      @id @default(autoincrement())
-  name        String   @unique  // e.g. "task:create", "task:assign"
+  name        String   @unique // e.g. "task:create", "task:assign"
   description String?
   created_at  DateTime @default(now())
 
@@ -65,7 +65,7 @@ model TaskType {
   name       String   @unique
   created_at DateTime @default(now())
 
-  tasks Task[]
+  tasks      Task[]
   tasks_many Task[] @relation("TaskToTaskTypes")
 
   @@map("task_types")
@@ -111,11 +111,6 @@ model User {
   email                  String    @unique
   password               String
   name                   String
-  role_id                Int
-  id         Int      @id @default(autoincrement())
-  email      String   @unique
-  password   String
-  name       String
   is_active              Boolean   @default(true)
   reset_password_token   String?   @unique
   reset_password_expires DateTime?
@@ -124,7 +119,7 @@ model User {
   updated_at             DateTime  @updatedAt
 
   // Relations
-  role                     UserRole                @relation(fields: [role_id], references: [id])
+  roles                    UserRole[]
   managed_clients          Client[]                @relation("ClientManager")
   assigned_tasks           Task[]                  @relation("TaskDesigner")
   created_tasks            Task[]                  @relation("TaskCreator")
@@ -132,13 +127,6 @@ model User {
   comments                 Comment[]
   uploads                  Attachment[]
   audit_logs               AuditLog[]
-  roles           UserRole[]
-  managed_clients Client[] @relation("ClientManager")
-  assigned_tasks  Task[]   @relation("TaskDesigner")
-  created_tasks   Task[]   @relation("TaskCreator")
-  comments        Comment[]
-  uploads         Attachment[]
-  audit_logs         AuditLog[]
   content_packages         ContentPackage[]
   content_package_versions ContentPackageVersion[] @relation("PackageVersionEditor")
   notifications            Notification[]
@@ -318,19 +306,19 @@ model ClientKnowledge {
 }
 
 model Task {
-  id                    Int      @id @default(autoincrement())
-  calendar_entry_id     Int?     @unique
+  id                    Int       @id @default(autoincrement())
+  calendar_entry_id     Int?      @unique
   title                 String
   status_id             Int
   task_type_id          Int?
-  priority              Int      @default(2)
+  priority              Int       @default(2)
   start_date            DateTime?
   designer_due_date     DateTime
   publish_date          DateTime
   assigned_designer_id  Int?
   created_by_manager_id Int
-  created_at            DateTime @default(now())
-  updated_at            DateTime @updatedAt
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
 
   // Relations
   calendar_entry     CalendarEntry? @relation(fields: [calendar_entry_id], references: [id])
