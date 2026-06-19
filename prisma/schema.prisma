@@ -18,6 +18,7 @@ model UserRole {
   users       User[]
   invitations Invitation[]
   permissions Permission[]
+  tasks_assigned     Task[]         @relation("TaskAssignedRoles")
 
   @@map("user_roles")
 }
@@ -318,6 +319,7 @@ model Task {
   task_types         TaskType[]     @relation("TaskToTaskTypes")
   assigned_designer  User?          @relation("TaskDesigner", fields: [assigned_designer_id], references: [id])
   created_by_manager User           @relation("TaskCreator", fields: [created_by_manager_id], references: [id])
+  assigned_roles     UserRole[]     @relation("TaskAssignedRoles")
   comments           Comment[]
   uploads            Attachment[]
 

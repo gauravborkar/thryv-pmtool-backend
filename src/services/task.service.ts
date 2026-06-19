@@ -38,6 +38,7 @@ export type CreateTaskPayload = {
   calendarEntryId?: number;
   clientId?: number;
   assignedDesignerId?: number;
+  assignedRoleIds?: number[];
   status?: WorkflowStatus;
   taskTypeId?: number;
   taskTypeIds?: number[];
@@ -52,6 +53,7 @@ export type UpdateTaskPayload = {
   priority?: number;
   taskTypeId?: number;
   taskTypeIds?: number[];
+  assignedRoleIds?: number[];
   startDate?: string;
 };
 
@@ -88,6 +90,7 @@ function includeTaskRelations() {
     calendar_entry: { include: { client: true } },
     assigned_designer: { select: { id: true, name: true, email: true } },
     created_by_manager: { select: { id: true, name: true, email: true } },
+    assigned_roles: true,
     comments: {
       include: { author: { select: { id: true, name: true, email: true } } },
       orderBy: { created_at: 'asc' as const },
@@ -126,6 +129,8 @@ function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includ
       : null,
     taskTypeIds: task.task_types ? task.task_types.map(t => t.id) : [],
     taskTypes: task.task_types ? task.task_types.map(t => ({ id: t.id, name: t.name })) : [],
+    assignedRoleIds: task.assigned_roles ? task.assigned_roles.map(r => r.id) : [],
+    assignedRoles: task.assigned_roles ? task.assigned_roles.map(r => ({ id: r.id, name: r.name })) : [],
     calendarEntryId: task.calendar_entry_id,
     client: task.calendar_entry?.client
       ? {
@@ -288,6 +293,9 @@ export async function createTask(payload: CreateTaskPayload, managerId: number) 
       task_types: hasTaskTypeIds 
         ? { connect: payload.taskTypeIds!.map(id => ({ id: Number(id) })) }
         : (payload.taskTypeId ? { connect: [{ id: Number(payload.taskTypeId) }] } : undefined),
+      assigned_roles: payload.assignedRoleIds && payload.assignedRoleIds.length > 0
+        ? { connect: payload.assignedRoleIds.map(id => ({ id: Number(id) })) }
+        : undefined,
       priority: payload.priority ?? 2,
       start_date: startDate,
       publish_date: publishDate,
@@ -363,6 +371,9 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, rol
         : (payload.taskTypeId !== undefined 
             ? (payload.taskTypeId ? { set: [{ id: Number(payload.taskTypeId) }] } : { set: [] }) 
             : undefined),
+      assigned_roles: payload.assignedRoleIds !== undefined
+        ? { set: payload.assignedRoleIds.map(id => ({ id: Number(id) })) }
+        : undefined,
       priority: payload.priority ?? existing.priority,
       start_date: startDate,
       publish_date: publishDate,
