@@ -35,6 +35,7 @@ import { getDistributionRule, upsertDistributionRule, scheduleDistribution, getS
 import uploadRoutes from './routes/upload.routes';
 import settingsRoutes from './routes/settings.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import chatRoutes from './routes/chat.routes';
 
 // Distribution endpoints - optionally cache get routes
 app.get('/distribution/:projectId', cacheMiddleware(30), getDistributionRule);
@@ -57,6 +58,7 @@ app.use('/notifications', cacheMiddleware(30), notificationRoutes)
 app.use('/storage', uploadRoutes)
 app.use('/settings', settingsRoutes)
 app.use('/dashboard', cacheMiddleware(30), dashboardRoutes)
+app.use('/chat', chatRoutes)
 
 export default app
 
