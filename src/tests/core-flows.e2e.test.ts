@@ -7,7 +7,7 @@ jest.mock('../middleware/auth.middleware', () => {
   return {
     authenticate: (req: any, res: any, next: any) => {
       // Mock an admin user by default
-      req.user = { id: 1, email: 'admin@thryv.com', role: 'ADMIN' };
+      req.user = { id: 1, email: 'admin@thryv.com', role: 'ADMIN', roles: ['ADMIN'] };
       next();
     },
     authorize: (roles: string[]) => (req: any, res: any, next: any) => {

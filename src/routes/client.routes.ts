@@ -1,14 +1,14 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate, authorize, authorizeSection } from '../middleware/auth.middleware';
 import * as clientController from '../controllers/client.controller';
 
 const router = Router();
 
-// Retrieve all clients (role-based: Admin sees all, Manager sees owned)
-router.get('/', authenticate, authorize(['ADMIN', 'MANAGER']), clientController.getClients);
+// Retrieve all clients (role-based dynamic section access)
+router.get('/', authenticate, authorizeSection('Clients'), clientController.getClients);
 
 // Retrieve a single client by ID
-router.get('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), clientController.getClientById);
+router.get('/:id', authenticate, authorizeSection('Clients'), clientController.getClientById);
 
 // Create a new client
 router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), clientController.createClient);
