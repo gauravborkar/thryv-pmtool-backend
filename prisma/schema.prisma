@@ -468,3 +468,13 @@ model RetentionPolicy {
 
   @@map("retention_policies")
 }
+
+model AccessControlRule {
+  id         Int      @id @default(autoincrement())
+  section    String   @unique
+  roles      Json     // e.g. ["ADMIN", "MANAGER"]
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("access_control_rules")
+}
