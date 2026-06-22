@@ -36,9 +36,50 @@ export async function getChannels(req: AuthRequest, res: Response) {
       }
     });
 
-    return res.json(channels);
+    const channelsWithUnread = await Promise.all(
+      channels.map(async (c) => {
+        const member = c.members.find(m => m.user_id === userId);
+        const lastReadAt = member?.last_read_at || new Date(0);
+        
+        const unread_count = await prisma.chatMessage.count({
+          where: {
+            channel_id: c.id,
+            created_at: { gt: lastReadAt }
+          }
+        });
+        
+        return { ...c, unread_count };
+      })
+    );
+
+    return res.json(channelsWithUnread);
   } catch (error) {
     console.error('Error fetching channels:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+export async function markChannelRead(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user?.id;
+    const { id: channelId } = req.params;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    await prisma.chatChannelMember.update({
+      where: {
+        channel_id_user_id: {
+          channel_id: Number(channelId),
+          user_id: userId
+        }
+      },
+      data: {
+        last_read_at: new Date()
+      }
+    });
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking channel read:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 }

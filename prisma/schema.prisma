@@ -503,6 +503,7 @@ model ChatChannelMember {
   channel_id Int
   user_id    Int
   joined_at  DateTime @default(now())
+  last_read_at DateTime @default(now())
 
   channel ChatChannel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
   user    User        @relation(fields: [user_id], references: [id], onDelete: Cascade)

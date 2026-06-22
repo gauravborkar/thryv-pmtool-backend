@@ -41,11 +41,11 @@ export function initializeSocket(server: HttpServer) {
     });
 
     socket.on('typing_start', ({ channelId, userName }: { channelId: number, userName: string }) => {
-      socket.to(`channel_${channelId}`).emit('user_typing', { userName });
+      socket.to(`channel_${channelId}`).emit('user_typing', { userName, channelId });
     });
 
     socket.on('typing_end', ({ channelId, userName }: { channelId: number, userName: string }) => {
-      socket.to(`channel_${channelId}`).emit('user_stopped_typing', { userName });
+      socket.to(`channel_${channelId}`).emit('user_stopped_typing', { userName, channelId });
     });
 
     socket.on('disconnect', () => {
