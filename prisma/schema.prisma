@@ -142,15 +142,16 @@ model User {
 }
 
 model Client {
-  id            Int      @id @default(autoincrement())
-  name          String
-  brand_details Json?
-  active_month  DateTime
-  manager_id    Int
-  is_active     Boolean  @default(true)
-  timezone      String   @default("UTC")
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  name              String
+  brand_details     Json?
+  active_month      DateTime
+  manager_id        Int
+  is_active         Boolean  @default(true)
+  timezone          String   @default("UTC")
+  google_drive_link String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
 
   // Relations
   manager          User              @relation("ClientManager", fields: [manager_id], references: [id])
