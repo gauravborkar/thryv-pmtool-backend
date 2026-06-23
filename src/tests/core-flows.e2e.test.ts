@@ -12,6 +12,9 @@ jest.mock('../middleware/auth.middleware', () => {
     },
     authorize: (roles: string[]) => (req: any, res: any, next: any) => {
       next();
+    },
+    authorizeSection: (sectionName: string) => (req: any, res: any, next: any) => {
+      next();
     }
   };
 });

@@ -12,8 +12,8 @@ const router = Router();
 
 // --- Blackout Dates Routes ---
 router.get('/blackouts', authenticate, getBlackoutDates);
-router.post('/blackouts', authenticate, authorize(['ADMIN', 'MANAGER']), addBlackoutDate);
-router.delete('/blackouts/:date', authenticate, authorize(['ADMIN', 'MANAGER']), removeBlackoutDate);
+router.post('/blackouts', authenticate, authorize([1, 2]), addBlackoutDate);
+router.delete('/blackouts/:date', authenticate, authorize([1, 2]), removeBlackoutDate);
 
 /**
  * @route POST /calendar/import
@@ -155,8 +155,10 @@ router.get('/', authenticate, async (req, res) => {
         ? parseISO(month.length === 7 ? `${month}-01` : month)
         : null;
 
-    const userRole = (req as any).user.role;
-    const userId = (req as any).user.id;
+    const user = (req as any).user;
+    const roleIds = user.roleIds || [];
+    const roles = user.roles || [];
+    const userId = user.id;
 
     const where: any = {
       client_id: client_id ? Number(client_id) : undefined,
@@ -168,9 +170,9 @@ router.get('/', authenticate, async (req, res) => {
         : undefined,
     };
 
-    if (userRole === 'DESIGNER') {
+    if (roleIds.includes(3) || roles.includes('DESIGNER')) {
       where.task = { assigned_designer_id: userId };
-    } else if (userRole === 'MANAGER') {
+    } else if (roleIds.includes(2) || roles.includes('MANAGER')) {
       where.task = { created_by_manager_id: userId };
     }
 
@@ -191,7 +193,7 @@ router.get('/', authenticate, async (req, res) => {
  * @desc Create calendar entry (Manager/Admin only)
  * @access Private (Admin, Manager)
  */
-router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res) => {
+router.post('/', authenticate, authorize([1, 2]), async (req, res) => {
   try {
     const {
       clientId,
@@ -285,7 +287,7 @@ router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res)
  * @desc Update calendar entry and sync linked task dates (Manager/Admin only)
  * @access Private (Admin, Manager)
  */
-router.patch('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res) => {
+router.patch('/:id', authenticate, authorize([1, 2]), async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {

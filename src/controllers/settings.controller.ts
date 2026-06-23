@@ -320,8 +320,9 @@ export const deleteRole = async (req: Request, res: Response, next: NextFunction
       return res.status(404).json({ message: 'Role not found' });
     }
 
-    const PROTECTED = ['ADMIN', 'MANAGER', 'DESIGNER', 'CLIENT'];
-    if (PROTECTED.includes(role.name)) {
+    const PROTECTED_IDS = [1, 2, 3, 4];
+    const PROTECTED_NAMES = ['ADMIN', 'MANAGER', 'DESIGNER', 'CLIENT'];
+    if (PROTECTED_IDS.includes(role.id) || PROTECTED_NAMES.includes(role.name)) {
       return res.status(403).json({ message: `System role "${role.name}" cannot be deleted` });
     }
 

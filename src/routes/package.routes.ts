@@ -29,10 +29,10 @@ router.get(
 
 router.get('/:id', authenticate, authorizeSection('Packages'), packageController.getPackageById);
 
-router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), packageController.createPackage);
+router.post('/', authenticate, authorize([1, 2]), packageController.createPackage);
 
-router.put('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), packageController.updatePackage);
+router.put('/:id', authenticate, authorize([1, 2]), packageController.updatePackage);
 
-router.delete('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), packageController.deletePackage);
+router.delete('/:id', authenticate, authorize([1, 2]), packageController.deletePackage);
 
 export default router;

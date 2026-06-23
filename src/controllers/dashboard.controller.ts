@@ -88,7 +88,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
     const user = (req as AuthRequest).user;
     let designerMetrics = undefined;
 
-    if (user && user.roles.some((r) => ['DESIGNER', 'VIDEOGRAPHER', 'EDITOR'].includes(r.toUpperCase()))) {
+    if (user && (user.roleIds.includes(3) || user.roles.some((r) => ['DESIGNER', 'VIDEOGRAPHER', 'EDITOR'].includes(r.toUpperCase())))) {
       const startOfWeek = new Date(today);
       startOfWeek.setDate(today.getDate() - today.getDay());
       const endOfWeek = new Date(startOfWeek);

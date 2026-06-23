@@ -19,12 +19,18 @@ export interface UpdateClientInput {
   is_active?: boolean;
 }
 
+function isManagerUser(user: { roles: string[]; roleIds?: number[] }) {
+  const isManager = user.roleIds?.includes(2) || user.roles.includes('MANAGER');
+  const isAdmin = user.roleIds?.includes(1) || user.roles.includes('ADMIN');
+  return isManager && !isAdmin;
+}
+
 /**
  * Helper to enforce that a manager can only access their own client.
  * Throws an error if the user is a manager and does not own the client.
  */
-function enforceOwnership(client: { manager_id: number }, user: { id: number; roles: string[] }) {
-  if (user.roles.includes('MANAGER') && !user.roles.includes('ADMIN') && client.manager_id !== user.id) {
+function enforceOwnership(client: { manager_id: number }, user: { id: number; roles: string[]; roleIds?: number[] }) {
+  if (isManagerUser(user) && client.manager_id !== user.id) {
     throw new Error('Forbidden: You do not have permission to access this client profile');
   }
 }
@@ -34,14 +40,14 @@ function enforceOwnership(client: { manager_id: number }, user: { id: number; ro
  * - ADMIN: Can see all clients.
  * - MANAGER: Can only see clients they manage.
  */
-export const getClients = async (user: { id: number; roles: string[] }, activeOnly = true) => {
+export const getClients = async (user: { id: number; roles: string[]; roleIds?: number[] }, activeOnly = true) => {
   const cacheKey = `clients_user_${user.id}_active_${activeOnly}`;
   const cached = localCache.get<any[]>(cacheKey);
   if (cached) return cached;
 
   const whereClause: any = {};
 
-  if (user.roles.includes('MANAGER') && !user.roles.includes('ADMIN')) {
+  if (isManagerUser(user)) {
     whereClause.manager_id = user.id;
   }
 
@@ -72,7 +78,7 @@ export const getClients = async (user: { id: number; roles: string[] }, activeOn
 /**
  * Gets a single client by ID, checking ownership.
  */
-export const getClientById = async (id: number, user: { id: number; roles: string[] }) => {
+export const getClientById = async (id: number, user: { id: number; roles: string[]; roleIds?: number[] }) => {
   const client = await prisma.client.findUnique({
     where: { id },
     include: {
@@ -101,10 +107,13 @@ export const getClientById = async (id: number, user: { id: number; roles: strin
  * - MANAGER: manager_id is forced to their own ID.
  * - ADMIN: can assign any valid manager_id (defaults to their own ID if not specified).
  */
-export const createClient = async (data: CreateClientInput, user: { id: number; roles: string[] }) => {
+export const createClient = async (data: CreateClientInput, user: { id: number; roles: string[]; roleIds?: number[] }) => {
   let managerId = user.id;
 
-  if (user.roles.includes('ADMIN')) {
+  const isAdmin = user.roleIds?.includes(1) || user.roles.includes('ADMIN');
+  const isManager = user.roleIds?.includes(2) || user.roles.includes('MANAGER');
+
+  if (isAdmin) {
     if (data.manager_id) {
       // Validate that the assigned manager exists
       const targetManager = await prisma.user.findUnique({
@@ -117,7 +126,7 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
       }
 
       const hasManagerPrivileges = targetManager.roles.some(
-        (r) => r.name === 'MANAGER' || r.name === 'ADMIN'
+        (r) => r.id === 1 || r.id === 2 || r.name === 'MANAGER' || r.name === 'ADMIN'
       );
 
       if (!hasManagerPrivileges) {
@@ -126,7 +135,7 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
 
       managerId = data.manager_id;
     }
-  } else if (user.roles.includes('MANAGER')) {
+  } else if (isManager) {
     // Managers can only create clients for themselves
     managerId = user.id;
   }
@@ -169,7 +178,7 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
 /**
  * Updates a client, checking ownership first.
  */
-export const updateClient = async (id: number, data: UpdateClientInput, user: { id: number; roles: string[] }) => {
+export const updateClient = async (id: number, data: UpdateClientInput, user: { id: number; roles: string[]; roleIds?: number[] }) => {
   const client = await prisma.client.findUnique({
     where: { id },
   });
@@ -189,11 +198,14 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
     updateData.active_month = new Date(data.active_month);
   }
 
+  const isAdmin = user.roleIds?.includes(1) || user.roles.includes('ADMIN');
+  const isManager = user.roleIds?.includes(2) || user.roles.includes('MANAGER');
+
   // Manager update restrictions:
-  if (user.roles.includes('MANAGER') && !user.roles.includes('ADMIN')) {
+  if (isManager && !isAdmin) {
     // Managers cannot reassign the client's manager_id
     delete updateData.manager_id;
-  } else if (user.roles.includes('ADMIN') && data.manager_id) {
+  } else if (isAdmin && data.manager_id) {
     // Admin is reassigning the manager. Verify the target manager exists.
     const targetManager = await prisma.user.findUnique({
       where: { id: data.manager_id },
@@ -205,7 +217,7 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
     }
 
     const hasManagerPrivileges = targetManager.roles.some(
-      (r) => r.name === 'MANAGER' || r.name === 'ADMIN'
+      (r) => r.id === 1 || r.id === 2 || r.name === 'MANAGER' || r.name === 'ADMIN'
     );
 
     if (!hasManagerPrivileges) {
@@ -246,7 +258,7 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
 /**
  * Archives a client (soft-delete).
  */
-export const archiveClient = async (id: number, user: { id: number; roles: string[] }) => {
+export const archiveClient = async (id: number, user: { id: number; roles: string[]; roleIds?: number[] }) => {
   const client = await prisma.client.findUnique({
     where: { id },
   });
