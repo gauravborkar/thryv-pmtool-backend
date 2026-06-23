@@ -8,6 +8,8 @@ export interface CreateClientInput {
   manager_id?: number;
   brand_details?: any;
   timezone?: string;
+  package_ids?: string[];
+  google_drive_link?: string;
 }
 
 export interface UpdateClientInput {
@@ -17,6 +19,8 @@ export interface UpdateClientInput {
   brand_details?: any;
   timezone?: string;
   is_active?: boolean;
+  package_ids?: string[];
+  google_drive_link?: string;
 }
 
 function isManagerUser(user: { roles: string[]; roleIds?: number[] }) {
@@ -65,6 +69,12 @@ export const getClients = async (user: { id: number; roles: string[]; roleIds?: 
           email: true,
         },
       },
+      content_packages: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
     orderBy: {
       created_at: 'desc',
@@ -87,6 +97,12 @@ export const getClientById = async (id: number, user: { id: number; roles: strin
           id: true,
           name: true,
           email: true,
+        },
+      },
+      content_packages: {
+        select: {
+          id: true,
+          name: true,
         },
       },
     },
@@ -148,6 +164,7 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
       brand_details: data.brand_details || undefined,
       timezone: data.timezone || 'UTC',
       is_active: true,
+      google_drive_link: data.google_drive_link || null,
     },
     include: {
       manager: {
@@ -159,6 +176,15 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
       },
     },
   });
+
+  if (data.package_ids && data.package_ids.length > 0) {
+    await prisma.contentPackage.updateMany({
+      where: {
+        id: { in: data.package_ids },
+      },
+      data: { client_id: client.id },
+    });
+  }
 
   if (user.id !== managerId) {
     await createNotification({
@@ -172,7 +198,28 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
   }
 
   localCache.deletePattern('clients_user_');
-  return client;
+
+  // Return the client with packages included
+  const clientWithPackages = await prisma.client.findUnique({
+    where: { id: client.id },
+    include: {
+      manager: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      content_packages: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  return clientWithPackages || client;
 };
 
 /**
@@ -190,13 +237,15 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
   // Use helper for ownership enforcement
   enforceOwnership(client, user);
 
-  const updateData: any = { ...data };
-  delete updateData.id;
-
-  // Handle active_month parsing if updated
-  if (data.active_month) {
-    updateData.active_month = new Date(data.active_month);
-  }
+  // Build updateData using only fields that are valid Prisma Client model columns.
+  // DO NOT spread req.body directly – extra fields like package_ids would reach Prisma.
+  const updateData: any = {};
+  if (data.name !== undefined)          updateData.name = data.name;
+  if (data.is_active !== undefined)     updateData.is_active = data.is_active;
+  if (data.brand_details !== undefined) updateData.brand_details = data.brand_details;
+  if (data.timezone !== undefined)      updateData.timezone = data.timezone;
+  if (data.google_drive_link !== undefined) updateData.google_drive_link = data.google_drive_link;
+  if (data.active_month !== undefined)  updateData.active_month = new Date(data.active_month);
 
   const isAdmin = user.roleIds?.includes(1) || user.roles.includes('ADMIN');
   const isManager = user.roleIds?.includes(2) || user.roles.includes('MANAGER');
@@ -204,7 +253,7 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
   // Manager update restrictions:
   if (isManager && !isAdmin) {
     // Managers cannot reassign the client's manager_id
-    delete updateData.manager_id;
+    // (manager_id is simply not added to updateData for manager users)
   } else if (isAdmin && data.manager_id) {
     // Admin is reassigning the manager. Verify the target manager exists.
     const targetManager = await prisma.user.findUnique({
@@ -223,6 +272,30 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
     if (!hasManagerPrivileges) {
       throw new Error('Clients can only be assigned to Admin or Manager accounts');
     }
+
+    updateData.manager_id = data.manager_id;
+  }
+
+  // If package_ids is provided, update client_id on packages
+  if (data.package_ids !== undefined) {
+    // 1. Dissociate packages that are no longer associated
+    await prisma.contentPackage.updateMany({
+      where: {
+        client_id: client.id,
+        id: { notIn: data.package_ids },
+      },
+      data: { client_id: null },
+    });
+
+    // 2. Associate new packages
+    if (data.package_ids.length > 0) {
+      await prisma.contentPackage.updateMany({
+        where: {
+          id: { in: data.package_ids },
+        },
+        data: { client_id: client.id },
+      });
+    }
   }
 
   const updated = await prisma.client.update({
@@ -234,6 +307,12 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
           id: true,
           name: true,
           email: true,
+        },
+      },
+      content_packages: {
+        select: {
+          id: true,
+          name: true,
         },
       },
     },
