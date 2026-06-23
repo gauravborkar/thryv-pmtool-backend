@@ -320,15 +320,8 @@ export const deleteRole = async (req: Request, res: Response, next: NextFunction
       return res.status(404).json({ message: 'Role not found' });
     }
 
-    const PROTECTED_IDS = [1, 2, 3, 4];
-    const PROTECTED_NAMES = ['ADMIN', 'MANAGER', 'DESIGNER', 'CLIENT'];
-    if (PROTECTED_IDS.includes(role.id) || PROTECTED_NAMES.includes(role.name)) {
-      return res.status(403).json({ message: `System role "${role.name}" cannot be deleted` });
-    }
-
-    await prisma.userRole.delete({ where: { id } });
-
-    res.status(200).json({ message: `Role "${role.name}" deleted successfully` });
+    // Completely disable deleting any existing role
+    return res.status(403).json({ message: `Role "${role.name}" cannot be deleted. Role deletion is disabled.` });
   } catch (error: any) {
     res.status(500).json({ message: error.message || 'Internal server error' });
   }
