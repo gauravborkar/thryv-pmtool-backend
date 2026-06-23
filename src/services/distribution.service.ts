@@ -87,7 +87,7 @@ export async function schedulePosts(packageId: string, ruleId: number): Promise<
   );
 
   const availablePeakDates: Date[] = [];
-  let curr = new Date(startDate);
+  const curr = new Date(startDate);
   while (curr <= endDate) {
     const isoDay = curr.getDay() === 0 ? 7 : curr.getDay();
     const currNorm = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate()).getTime();

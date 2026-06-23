@@ -242,9 +242,6 @@ router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), async (req, res)
         task_types: hasTaskTypeIds 
           ? { connect: taskTypeIds.map((id: any) => ({ id: Number(id) })) }
           : (taskTypeId ? { connect: [{ id: Number(taskTypeId) }] } : undefined),
-        assigned_roles: assignedRoleIds && Array.isArray(assignedRoleIds) && assignedRoleIds.length > 0
-          ? { connect: assignedRoleIds.map((id: any) => ({ id: Number(id) })) }
-          : undefined,
         start_date: startDate ? new Date(String(startDate)) : null,
         publish_date: publishDate,
         designer_due_date: designerDueDate,

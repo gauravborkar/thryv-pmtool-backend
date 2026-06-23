@@ -25,7 +25,7 @@ model UserRole {
 
 model Permission {
   id          Int      @id @default(autoincrement())
-  name        String   @unique  // e.g. "task:create", "task:assign"
+  name        String   @unique // e.g. "task:create", "task:assign"
   description String?
   created_at  DateTime @default(now())
 
@@ -66,7 +66,7 @@ model TaskType {
   name       String   @unique
   created_at DateTime @default(now())
 
-  tasks Task[]
+  tasks      Task[]
   tasks_many Task[] @relation("TaskToTaskTypes")
 
   @@map("task_types")
@@ -108,10 +108,10 @@ model SocialPlatform {
 // ==================== MAIN TABLES ====================
 
 model User {
-  id         Int      @id @default(autoincrement())
-  email      String   @unique
-  password   String
-  name       String
+  id                     Int       @id @default(autoincrement())
+  email                  String    @unique
+  password               String
+  name                   String
   is_active              Boolean   @default(true)
   reset_password_token   String?   @unique
   reset_password_expires DateTime?
@@ -120,16 +120,20 @@ model User {
   updated_at             DateTime  @updatedAt
 
   // Relations
-  roles           UserRole[]
-  managed_clients Client[] @relation("ClientManager")
-  assigned_tasks  Task[]   @relation("TaskDesigner")
-  created_tasks   Task[]   @relation("TaskCreator")
-  comments        Comment[]
-  uploads         Attachment[]
-  audit_logs         AuditLog[]
+  roles                    UserRole[]
+  managed_clients          Client[]                @relation("ClientManager")
+  assigned_tasks           Task[]                  @relation("TaskDesigner")
+  created_tasks            Task[]                  @relation("TaskCreator")
+  mentioned_tasks          Task[]                  @relation("TaskMentions")
+  comments                 Comment[]
+  uploads                  Attachment[]
+  audit_logs               AuditLog[]
   content_packages         ContentPackage[]
   content_package_versions ContentPackageVersion[] @relation("PackageVersionEditor")
   notifications            Notification[]
+  created_channels         ChatChannel[]           @relation("ChannelCreator")
+  chat_memberships         ChatChannelMember[]
+  chat_messages            ChatMessage[]
 
   // Indexes
   @@index([email])
@@ -149,11 +153,13 @@ model Client {
   updated_at    DateTime @updatedAt
 
   // Relations
-  manager          User            @relation("ClientManager", fields: [manager_id], references: [id])
+  manager          User              @relation("ClientManager", fields: [manager_id], references: [id])
   packages         Package[]
+  content_packages ContentPackage[]
   calendar_entries CalendarEntry[]
   uploads          Attachment[]
   knowledge        ClientKnowledge[]
+  chat_channels    ChatChannel[]
 
   // Indexes
   @@index([manager_id])
@@ -182,6 +188,7 @@ model Package {
 
 model ContentPackage {
   id              String   @id @default(uuid())
+  client_id       Int?
   name            String
   description     String?
   created_by_id   Int
@@ -189,13 +196,15 @@ model ContentPackage {
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
-  created_by User                     @relation(fields: [created_by_id], references: [id])
-  line_items ContentPackageLineItem[]
-  scheduledPosts ScheduledPost[]
-  versions   ContentPackageVersion[]
+  client           Client?                  @relation(fields: [client_id], references: [id])
+  created_by       User                     @relation(fields: [created_by_id], references: [id])
+  line_items       ContentPackageLineItem[]
+  scheduledPosts   ScheduledPost[]
+  versions         ContentPackageVersion[]
   distributionRule DistributionRule?
 
   @@index([created_by_id])
+  @@index([client_id])
   @@index([created_at])
   @@map("content_packages")
 }
@@ -224,15 +233,15 @@ model ContentPackageLineItem {
 }
 
 model ContentPackageVersion {
-  id              String   @id @default(uuid())
-  package_id      String
-  version_number  Int
-  name            String
-  description     String?
-  change_type     String
-  change_summary  Json?
-  edited_by_id    Int
-  created_at      DateTime @default(now())
+  id             String   @id @default(uuid())
+  package_id     String
+  version_number Int
+  name           String
+  description    String?
+  change_type    String
+  change_summary Json?
+  edited_by_id   Int
+  created_at     DateTime @default(now())
 
   package    ContentPackage                  @relation(fields: [package_id], references: [id], onDelete: Cascade)
   edited_by  User                            @relation("PackageVersionEditor", fields: [edited_by_id], references: [id])
@@ -298,19 +307,19 @@ model ClientKnowledge {
 }
 
 model Task {
-  id                    Int      @id @default(autoincrement())
-  calendar_entry_id     Int?     @unique
+  id                    Int       @id @default(autoincrement())
+  calendar_entry_id     Int?      @unique
   title                 String
   status_id             Int
   task_type_id          Int?
-  priority              Int      @default(2)
+  priority              Int       @default(2)
   start_date            DateTime?
   designer_due_date     DateTime
   publish_date          DateTime
   assigned_designer_id  Int?
   created_by_manager_id Int
-  created_at            DateTime @default(now())
-  updated_at            DateTime @updatedAt
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
 
   // Relations
   calendar_entry     CalendarEntry? @relation(fields: [calendar_entry_id], references: [id])
@@ -319,6 +328,7 @@ model Task {
   task_types         TaskType[]     @relation("TaskToTaskTypes")
   assigned_designer  User?          @relation("TaskDesigner", fields: [assigned_designer_id], references: [id])
   created_by_manager User           @relation("TaskCreator", fields: [created_by_manager_id], references: [id])
+  mentioned_users    User[]         @relation("TaskMentions")
   assigned_roles     UserRole[]     @relation("TaskAssignedRoles")
   comments           Comment[]
   uploads            Attachment[]
@@ -362,7 +372,7 @@ model Attachment {
   created_at  DateTime @default(now())
 
   // Relations
-  task  Task?   @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  task   Task?   @relation(fields: [task_id], references: [id], onDelete: Cascade)
   client Client? @relation(fields: [client_id], references: [id], onDelete: Cascade)
   user   User    @relation(fields: [uploaded_by], references: [id])
 
@@ -397,27 +407,27 @@ model AuditLog {
 model DistributionRule {
   id                       Int      @id @default(autoincrement())
   package_id               String   @unique
-  formatSequence           Json     // array of format identifiers
-  peakDays                 Json     // array of ISO weekday numbers (1-7)
+  formatSequence           Json // array of format identifiers
+  peakDays                 Json // array of ISO weekday numbers (1-7)
   maxConsecutiveSameFormat Int      @default(1)
   regenerationMode         String   @default("ALL")
   created_at               DateTime @default(now())
   updated_at               DateTime @updatedAt
 
   // Relations
-  package        ContentPackage @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  package        ContentPackage  @relation(fields: [package_id], references: [id], onDelete: Cascade)
   scheduledPosts ScheduledPost[]
 }
 
 model ScheduledPost {
-  id            Int      @id @default(autoincrement())
-  package_id    String
-  scheduled_at  DateTime
-  format        String
-  is_locked     Boolean  @default(false)
-  created_at    DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  package_id   String
+  scheduled_at DateTime
+  format       String
+  is_locked    Boolean  @default(false)
+  created_at   DateTime @default(now())
 
-  package ContentPackage @relation(fields: [package_id], references: [id])
+  package ContentPackage    @relation(fields: [package_id], references: [id])
   rule    DistributionRule? @relation(fields: [ruleId], references: [id])
   ruleId  Int?
 
@@ -427,11 +437,11 @@ model ScheduledPost {
 }
 
 model BlackoutDate {
-  id          Int      @id @default(autoincrement())
-  date        DateTime @unique
-  reason      String?
-  created_at  DateTime @default(now())
-  
+  id         Int      @id @default(autoincrement())
+  date       DateTime @unique
+  reason     String?
+  created_at DateTime @default(now())
+
   @@index([date])
   @@map("blackout_dates")
 }
@@ -477,4 +487,59 @@ model AccessControlRule {
   updated_at DateTime @updatedAt
 
   @@map("access_control_rules")
+}
+
+// ==================== CHAT ====================
+
+model ChatChannel {
+  id            Int      @id @default(autoincrement())
+  name          String? // Optional for direct messages
+  type          String // 'GROUP' | 'DIRECT' | 'CLIENT'
+  client_id     Int?
+  created_by_id Int
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  client     Client?             @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  created_by User                @relation("ChannelCreator", fields: [created_by_id], references: [id])
+  members    ChatChannelMember[]
+  messages   ChatMessage[]
+
+  @@index([client_id])
+  @@index([created_by_id])
+  @@map("chat_channels")
+}
+
+model ChatChannelMember {
+  id           Int      @id @default(autoincrement())
+  channel_id   Int
+  user_id      Int
+  joined_at    DateTime @default(now())
+  last_read_at DateTime @default(now())
+
+  channel ChatChannel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([channel_id, user_id])
+  @@index([channel_id])
+  @@index([user_id])
+  @@map("chat_channel_members")
+}
+
+model ChatMessage {
+  id         Int      @id @default(autoincrement())
+  channel_id Int
+  sender_id  Int
+  content    String
+  type       String   @default("TEXT") // 'TEXT' | 'FILE' | 'TASK_LINK'
+  metadata   Json? // Stores attachment URL or linked task ID
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  channel ChatChannel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  sender  User        @relation(fields: [sender_id], references: [id])
+
+  @@index([channel_id])
+  @@index([sender_id])
+  @@map("chat_messages")
 }

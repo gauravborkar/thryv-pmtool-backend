@@ -128,6 +128,20 @@ router.get('/designers', authenticate, authorize(['ADMIN', 'MANAGER']), async (_
   }
 });
 
+// GET /users/taggable (All authenticated users)
+router.get('/taggable', authenticate, async (_req: any, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: { is_active: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' },
+    });
+    res.json({ data: users });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // DELETE /users/:id (Admin only)
 router.delete('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => {
   try {

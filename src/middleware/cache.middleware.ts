@@ -64,7 +64,7 @@ export const invalidateCacheMiddleware = (linkedResources: string[] = []) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     res.json = (body: any) => {
       if (res.statusCode >= 200 && res.statusCode < 300 && redis.status === 'ready') {
-        const match = req.originalUrl.match(/^\/([^\/?#]+)/);
+        const match = req.originalUrl.match(/^\/([^/?#]+)/);
         const baseRoute = match ? `/${match[1]}` : '';
 
         const resourcesToInvalidate = new Set<string>();
