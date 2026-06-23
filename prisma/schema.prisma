@@ -18,6 +18,7 @@ model UserRole {
   users       User[]
   invitations Invitation[]
   permissions Permission[]
+  tasks_assigned     Task[]         @relation("TaskAssignedRoles")
 
   @@map("user_roles")
 }
@@ -327,7 +328,7 @@ model Task {
   task_types         TaskType[]     @relation("TaskToTaskTypes")
   assigned_designer  User?          @relation("TaskDesigner", fields: [assigned_designer_id], references: [id])
   created_by_manager User           @relation("TaskCreator", fields: [created_by_manager_id], references: [id])
-  mentioned_users    User[]         @relation("TaskMentions")
+  assigned_roles     UserRole[]     @relation("TaskAssignedRoles")
   comments           Comment[]
   uploads            Attachment[]
 
@@ -477,57 +478,12 @@ model RetentionPolicy {
   @@map("retention_policies")
 }
 
-// ==================== CHAT ====================
-
-model ChatChannel {
-  id            Int      @id @default(autoincrement())
-  name          String? // Optional for direct messages
-  type          String // 'GROUP' | 'DIRECT' | 'CLIENT'
-  client_id     Int?
-  created_by_id Int
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-
-  client     Client?             @relation(fields: [client_id], references: [id], onDelete: Cascade)
-  created_by User                @relation("ChannelCreator", fields: [created_by_id], references: [id])
-  members    ChatChannelMember[]
-  messages   ChatMessage[]
-
-  @@index([client_id])
-  @@index([created_by_id])
-  @@map("chat_channels")
-}
-
-model ChatChannelMember {
+model AccessControlRule {
   id         Int      @id @default(autoincrement())
-  channel_id Int
-  user_id    Int
-  joined_at  DateTime @default(now())
-  last_read_at DateTime @default(now())
-
-  channel ChatChannel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  user    User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@unique([channel_id, user_id])
-  @@index([channel_id])
-  @@index([user_id])
-  @@map("chat_channel_members")
-}
-
-model ChatMessage {
-  id         Int      @id @default(autoincrement())
-  channel_id Int
-  sender_id  Int
-  content    String
-  type       String   @default("TEXT") // 'TEXT' | 'FILE' | 'TASK_LINK'
-  metadata   Json? // Stores attachment URL or linked task ID
+  section    String   @unique
+  roles      Json     // e.g. ["ADMIN", "MANAGER"]
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  channel ChatChannel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  sender  User        @relation(fields: [sender_id], references: [id])
-
-  @@index([channel_id])
-  @@index([sender_id])
-  @@map("chat_messages")
+  @@map("access_control_rules")
 }

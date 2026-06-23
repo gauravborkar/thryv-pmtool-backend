@@ -38,6 +38,7 @@ export type CreateTaskPayload = {
   calendarEntryId?: number;
   clientId?: number;
   assignedDesignerId?: number;
+  assignedRoleIds?: number[];
   status?: WorkflowStatus;
   taskTypeId?: number;
   taskTypeIds?: number[];
@@ -52,6 +53,7 @@ export type UpdateTaskPayload = {
   priority?: number;
   taskTypeId?: number;
   taskTypeIds?: number[];
+  assignedRoleIds?: number[];
   startDate?: string;
 };
 
@@ -88,7 +90,6 @@ function includeTaskRelations() {
     calendar_entry: { include: { client: true } },
     assigned_designer: { select: { id: true, name: true, email: true } },
     created_by_manager: { select: { id: true, name: true, email: true } },
-    mentioned_users: { select: { id: true, name: true } },
     comments: {
       include: { author: { select: { id: true, name: true, email: true } } },
       orderBy: { created_at: 'asc' as const },
@@ -127,6 +128,8 @@ function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includ
       : null,
     taskTypeIds: task.task_types ? task.task_types.map(t => t.id) : [],
     taskTypes: task.task_types ? task.task_types.map(t => ({ id: t.id, name: t.name })) : [],
+    assignedRoleIds: [],
+    assignedRoles: [],
     calendarEntryId: task.calendar_entry_id,
     client: task.calendar_entry?.client
       ? {

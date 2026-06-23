@@ -116,7 +116,7 @@ router.get('/designers', authenticate, authorize(['ADMIN', 'MANAGER']), async (_
   try {
     const designers = await prisma.user.findMany({
       where: {
-        roles: { some: { name: { in: ['DESIGNER', 'VIDEOGRAPHER', 'EDITOR'] } } },
+        roles: { none: { name: 'ADMIN' } },
         is_active: true,
       },
       select: { id: true, name: true, email: true, roles: { select: { id: true, name: true } } },
