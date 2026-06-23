@@ -45,7 +45,7 @@ export const getClientById = async (req: AuthRequest, res: Response, next: NextF
 };
 
 export const createClient = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  const { name, active_month, manager_id, brand_details, timezone } = req.body;
+  const { name, active_month, manager_id, brand_details, timezone, package_ids } = req.body;
   const user = req.user!;
 
   try {
@@ -54,7 +54,7 @@ export const createClient = async (req: AuthRequest, res: Response, next: NextFu
     }
 
     const client = await clientService.createClient(
-      { name, active_month, manager_id, brand_details, timezone },
+      { name, active_month, manager_id, brand_details, timezone, package_ids },
       user
     );
 

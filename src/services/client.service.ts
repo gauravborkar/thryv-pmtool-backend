@@ -8,6 +8,7 @@ export interface CreateClientInput {
   manager_id?: number;
   brand_details?: any;
   timezone?: string;
+  package_ids?: string[];
 }
 
 export interface UpdateClientInput {
@@ -17,6 +18,7 @@ export interface UpdateClientInput {
   brand_details?: any;
   timezone?: string;
   is_active?: boolean;
+  package_ids?: string[];
 }
 
 function isManagerUser(user: { roles: string[]; roleIds?: number[] }) {
@@ -65,6 +67,12 @@ export const getClients = async (user: { id: number; roles: string[]; roleIds?: 
           email: true,
         },
       },
+      content_packages: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
     orderBy: {
       created_at: 'desc',
@@ -87,6 +95,12 @@ export const getClientById = async (id: number, user: { id: number; roles: strin
           id: true,
           name: true,
           email: true,
+        },
+      },
+      content_packages: {
+        select: {
+          id: true,
+          name: true,
         },
       },
     },
@@ -160,6 +174,15 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
     },
   });
 
+  if (data.package_ids && data.package_ids.length > 0) {
+    await prisma.contentPackage.updateMany({
+      where: {
+        id: { in: data.package_ids },
+      },
+      data: { client_id: client.id },
+    });
+  }
+
   if (user.id !== managerId) {
     await createNotification({
       userId: managerId,
@@ -172,7 +195,28 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
   }
 
   localCache.deletePattern('clients_user_');
-  return client;
+
+  // Return the client with packages included
+  const clientWithPackages = await prisma.client.findUnique({
+    where: { id: client.id },
+    include: {
+      manager: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      content_packages: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  return clientWithPackages || client;
 };
 
 /**
@@ -192,6 +236,7 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
 
   const updateData: any = { ...data };
   delete updateData.id;
+  delete updateData.package_ids;
 
   // Handle active_month parsing if updated
   if (data.active_month) {
@@ -225,6 +270,28 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
     }
   }
 
+  // If package_ids is provided, update client_id on packages
+  if (data.package_ids !== undefined) {
+    // 1. Dissociate packages that are no longer associated
+    await prisma.contentPackage.updateMany({
+      where: {
+        client_id: client.id,
+        id: { notIn: data.package_ids },
+      },
+      data: { client_id: null },
+    });
+
+    // 2. Associate new packages
+    if (data.package_ids.length > 0) {
+      await prisma.contentPackage.updateMany({
+        where: {
+          id: { in: data.package_ids },
+        },
+        data: { client_id: client.id },
+      });
+    }
+  }
+
   const updated = await prisma.client.update({
     where: { id },
     data: updateData,
@@ -234,6 +301,12 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
           id: true,
           name: true,
           email: true,
+        },
+      },
+      content_packages: {
+        select: {
+          id: true,
+          name: true,
         },
       },
     },
