@@ -14,6 +14,6 @@ router.post('/channels/:id/read', markChannelRead);
 
 // Users can create DIRECT channels, ADMIN/MANAGER can create GROUP channels
 router.post('/channels', createChannel);
-router.delete('/channels/:id', authorize(['ADMIN', 'MANAGER']), deleteChannel);
+router.delete('/channels/:id', authorize([1, 2]), deleteChannel);
 
 export default router;
