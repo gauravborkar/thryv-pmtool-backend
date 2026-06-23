@@ -11,7 +11,7 @@ const router = Router();
  * @desc Create a new user invitation (Admin only)
  * @access Private (Admin)
  */
-router.post('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+router.post('/', authenticate, authorize([1]), async (req: any, res) => {
   const { email, role_id } = req.body;
   try {
     if (!email || !role_id) {

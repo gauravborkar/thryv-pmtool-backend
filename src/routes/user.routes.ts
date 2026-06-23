@@ -5,7 +5,7 @@ import prisma from '../lib/prisma';
 const router = Router();
 
 // GET /users (Admin only)
-router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+router.get('/', authenticate, authorize([1]), async (req: any, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
@@ -56,7 +56,7 @@ router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
 import bcrypt from 'bcryptjs';
 
 // POST /users (Admin only)
-router.post('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+router.post('/', authenticate, authorize([1]), async (req: any, res) => {
   try {
     const { email, password, name, role_ids } = req.body;
     // Support legacy role_id (single) or new role_ids (array)
@@ -112,7 +112,7 @@ router.get('/me', authenticate, async (req: any, res) => {
 });
 
 // GET /users/designers (Admin/Manager)
-router.get('/designers', authenticate, authorize(['ADMIN', 'MANAGER']), async (_req: any, res) => {
+router.get('/designers', authenticate, authorize([1, 2]), async (_req: any, res) => {
   try {
     const designers = await prisma.user.findMany({
       where: {
@@ -143,7 +143,7 @@ router.get('/taggable', authenticate, async (_req: any, res) => {
 });
 
 // DELETE /users/:id (Admin only)
-router.delete('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+router.delete('/:id', authenticate, authorize([1]), async (req: any, res) => {
   try {
     const userId = parseInt(req.params.id);
     if (isNaN(userId)) {
@@ -168,7 +168,7 @@ router.delete('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) 
   }
 });
 // PUT /users/:id (Admin only)
-router.put('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+router.put('/:id', authenticate, authorize([1]), async (req: any, res) => {
   try {
     const userId = parseInt(req.params.id);
     if (isNaN(userId)) {

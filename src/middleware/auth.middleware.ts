@@ -9,14 +9,15 @@ export interface AuthRequest extends Request {
     id: number;
     email: string;
     roles: string[];        // e.g. ['ADMIN', 'DESIGNER']
+    roleIds: number[];      // e.g. [1, 3]
     permissions: string[];  // e.g. ['task:create', 'task:upload']
   };
 }
 
 /** Helper: check if user has any of the given roles */
-export const hasRole = (user: AuthRequest['user'], ...roles: string[]): boolean => {
+export const hasRole = (user: AuthRequest['user'], ...roleIds: number[]): boolean => {
   if (!user) return false;
-  return roles.some((r) => user.roles.includes(r));
+  return roleIds.some((id) => user.roleIds.includes(id));
 };
 
 /** Helper: check if user has a specific permission */
@@ -36,13 +37,29 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 
   try {
     const payload = jwt.verify(token, JWT_SECRET) as any;
-    // Support both old JWTs (single role string) and new JWTs (roles array)
+    
+    // Fallback mapping if roleIds is missing in legacy token
+    let roleIds = payload.roleIds;
+    if (!Array.isArray(roleIds)) {
+      const rolesList = Array.isArray(payload.roles)
+        ? payload.roles
+        : (payload.role ? [payload.role] : []);
+      const nameToIdMap: Record<string, number> = {
+        ADMIN: 1,
+        MANAGER: 2,
+        DESIGNER: 3,
+        CLIENT: 4
+      };
+      roleIds = rolesList.map((name: string) => nameToIdMap[name]).filter((id: number | undefined) => id !== undefined);
+    }
+
     req.user = {
       id: payload.id,
       email: payload.email,
       roles: Array.isArray(payload.roles)
         ? payload.roles
         : (payload.role ? [payload.role] : []),
+      roleIds,
       permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
     };
     next();
@@ -52,9 +69,9 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 };
 
 /** Middleware: allow only users with at least one of the specified roles */
-export const authorize = (roles: string[]) => {
+export const authorize = (roleIds: number[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (!req.user || !req.user.roles.some((r) => roles.includes(r))) {
+    if (!req.user || !req.user.roleIds.some((id) => roleIds.includes(id))) {
       return res.status(403).json({ message: 'Forbidden: You do not have permission to access this resource' });
     }
     next();
@@ -90,7 +107,7 @@ export const authorizeSection = (sectionName: string) => {
     }
 
     // Always allow ADMIN
-    if (req.user.roles.includes('ADMIN')) {
+    if (req.user.roleIds.includes(1) || req.user.roles.includes('ADMIN')) {
       return next();
     }
 
@@ -114,11 +131,14 @@ export const authorizeSection = (sectionName: string) => {
 
       // Check if user has access. If user token has roleIds, use them.
       // Otherwise, query database to map user's role names to their corresponding database IDs.
-      const dbUserRoles = await prisma.userRole.findMany({
-        where: { name: { in: req.user.roles } },
-        select: { id: true }
-      });
-      const userRoleIds = dbUserRoles.map(r => r.id);
+      let userRoleIds = req.user.roleIds || [];
+      if (userRoleIds.length === 0) {
+        const dbUserRoles = await prisma.userRole.findMany({
+          where: { name: { in: req.user.roles } },
+          select: { id: true }
+        });
+        userRoleIds = dbUserRoles.map(r => r.id);
+      }
 
       const hasAccess = userRoleIds.some((id) => allowedRoles.includes(id)) || 
                         req.user.roles.some((name) => allowedRoles.includes(name));

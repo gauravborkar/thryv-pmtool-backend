@@ -19,6 +19,7 @@ export const comparePassword = async (password: string, hash: string): Promise<b
 
 export const generateTokens = (user: any) => {
   const roleNames: string[] = (user.roles ?? []).map((r: any) => r.name);
+  const roleIds: number[] = (user.roles ?? []).map((r: any) => r.id);
   const permissions: string[] = [
     ...new Set(
       (user.roles ?? []).flatMap((r: any) =>
@@ -31,6 +32,7 @@ export const generateTokens = (user: any) => {
     id: user.id,
     email: user.email,
     roles: roleNames,
+    roleIds,
     permissions,
   };
 

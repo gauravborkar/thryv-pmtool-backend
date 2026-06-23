@@ -2,6 +2,12 @@ import request from 'supertest';
 import app from '../app';
 import { prismaMock } from './setup';
 
+// Mock email service to avoid real network SMTP calls
+jest.mock('../services/email.service', () => ({
+  sendInvitationEmail: jest.fn().mockResolvedValue(true),
+  sendPasswordResetEmail: jest.fn().mockResolvedValue(true),
+}));
+
 // Mock auth middleware to bypass token verification for E2E flow tests
 jest.mock('../middleware/auth.middleware', () => {
   return {
@@ -11,6 +17,9 @@ jest.mock('../middleware/auth.middleware', () => {
       next();
     },
     authorize: (roles: string[]) => (req: any, res: any, next: any) => {
+      next();
+    },
+    authorizeSection: (sectionName: string) => (req: any, res: any, next: any) => {
       next();
     }
   };

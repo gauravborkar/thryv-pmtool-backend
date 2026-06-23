@@ -5,6 +5,6 @@ import * as auditController from '../controllers/audit.controller';
 const router = Router();
 
 // GET /audit (Admin only)
-router.get('/', authenticate, authorize(['ADMIN']), auditController.getAuditLogs);
+router.get('/', authenticate, authorize([1]), auditController.getAuditLogs);
 
 export default router;

@@ -181,7 +181,7 @@ export const getSidebarAccess = async (req: Request, res: Response, next: NextFu
       const rolesWithIds = rolesList.map(role => {
         if (typeof role === 'number') return role;
         return roleNameToId[role];
-      }).filter(id => id !== undefined);
+      }).filter(id => id !== undefined && id !== 1);
 
       return {
         section: sec,
@@ -192,7 +192,7 @@ export const getSidebarAccess = async (req: Request, res: Response, next: NextFu
     res.status(200).json({
       message: 'Sidebar access rules retrieved successfully',
       data: {
-        availableRoles: dbRoles, // Send full Role objects to frontend
+        availableRoles: dbRoles.filter(r => r.id !== 1 && r.name !== 'ADMIN'),
         rules
       }
     });
@@ -225,8 +225,8 @@ export const updateSidebarAccess = async (req: Request, res: Response, next: Nex
         return res.status(400).json({ message: `roles for ${section} must be an array of numbers` });
       }
 
-      // Validate that they are all numbers (role IDs)
-      const validRoleIds = roles.map(id => Number(id)).filter(id => !isNaN(id));
+      // Validate that they are all numbers (role IDs) excluding ADMIN (1)
+      const validRoleIds = roles.map(id => Number(id)).filter(id => !isNaN(id) && id !== 1);
 
       try {
         await prisma.accessControlRule.upsert({
@@ -320,14 +320,8 @@ export const deleteRole = async (req: Request, res: Response, next: NextFunction
       return res.status(404).json({ message: 'Role not found' });
     }
 
-    const PROTECTED = ['ADMIN', 'MANAGER', 'DESIGNER', 'CLIENT'];
-    if (PROTECTED.includes(role.name)) {
-      return res.status(403).json({ message: `System role "${role.name}" cannot be deleted` });
-    }
-
-    await prisma.userRole.delete({ where: { id } });
-
-    res.status(200).json({ message: `Role "${role.name}" deleted successfully` });
+    // Completely disable deleting any existing role
+    return res.status(403).json({ message: `Role "${role.name}" cannot be deleted. Role deletion is disabled.` });
   } catch (error: any) {
     res.status(500).json({ message: error.message || 'Internal server error' });
   }
