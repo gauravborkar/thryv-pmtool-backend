@@ -107,7 +107,8 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
         designerComments,
         designerOverdueTasks,
         designerCompletedTasks,
-        unreadCommentNotifications
+        unreadCommentNotifications,
+        assignedClients
       ] = await Promise.all([
         prisma.task.count({ where: { assigned_designer_id: user.id } }),
         prisma.task.count({ where: { assigned_designer_id: user.id, status: { name: { in: ['TODO', 'BACKLOG', 'NOT_STARTED'] } } } }),
@@ -149,6 +150,18 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
             reference_id: true,
             created_at: true
           }
+        }),
+        prisma.client.count({
+          where: {
+            is_active: true,
+            calendar_entries: {
+              some: {
+                task: {
+                  assigned_designer_id: user.id
+                }
+              }
+            }
+          }
         })
       ]);
 
@@ -163,6 +176,7 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
         comments: designerComments,
         overdue: designerOverdueTasks,
         completedTasks: designerCompletedTasks,
+        assignedClients,
         unreadCommentNotifications: unreadCommentNotifications.map(n => ({
           id: n.id,
           message: n.message,

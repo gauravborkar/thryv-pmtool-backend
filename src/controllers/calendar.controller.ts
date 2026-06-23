@@ -6,7 +6,7 @@ export const getBlackoutDates = async (req: Request, res: Response) => {
   try {
     const { start, end } = req.query;
     
-    let where: any = {};
+    const where: any = {};
     if (start && end) {
       where.date = {
         gte: parseISO(start as string),
