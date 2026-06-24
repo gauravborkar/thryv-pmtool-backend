@@ -7,6 +7,7 @@ import { createNotification } from '../services/notification.service';
 import { upload } from '../middleware/upload.middleware';
 import { generateCalendarData, AIModelType, buildContext } from '../services/ai.service';
 import * as xlsx from 'xlsx';
+import { storage } from '../lib/storage';
 
 const router = Router();
 
@@ -33,11 +34,19 @@ router.post('/import', authenticate, upload.single('file'), async (req, res) => 
       return res.status(400).json({ message: 'client_id is required' });
     }
 
+    // Upload the file to cloud storage since multer keeps it in memory
+    const { fileUrl } = await storage.uploadFile({
+      fileName: file.originalname,
+      fileType: file.mimetype,
+      buffer: file.buffer,
+      folder: 'calendar-imports',
+    });
+
     // Save the raw file as an Attachment
     const attachment = await prisma.attachment.create({
       data: {
         file_name: file.originalname,
-        file_url: `/uploads/${file.filename}`,
+        file_url: fileUrl,
         file_type: file.mimetype,
         file_size: file.size,
         client_id: Number(client_id),
@@ -46,7 +55,7 @@ router.post('/import', authenticate, upload.single('file'), async (req, res) => 
     });
 
     // Parse the Excel file and store each sheet dynamically
-    const workbook = xlsx.readFile(file.path);
+    const workbook = xlsx.read(file.buffer, { type: 'buffer' });
     const sheetNames = workbook.SheetNames;
 
     // Delete existing knowledge for this client to replace with new upload
@@ -100,7 +109,8 @@ router.post('/generate', authenticate, async (req, res) => {
     ${dbContext}
 
     Follow these instructions: ${instructions || 'Provide a good mix of content based on the context provided.'}
-    Ensure the output is valid JSON in the exact format: { "entries": [{ "date": "YYYY-MM-DD", "title": "Post Title", "description": "Post Description" }] }`;
+    Also, automatically search for all the public holidays of India and major global/national special events (e.g. World Environment Day, Independence Day, etc.) for the month, and mark them by setting is_holiday to true and clearly name the event in the title.
+    Ensure the output is valid JSON in the exact format: { "entries": [{ "date": "YYYY-MM-DD", "title": "Post Title", "description": "Post Description", "is_holiday": false }] }`;
 
     const generatedJson = await generateCalendarData(prompt, (model as AIModelType) || 'auto');
     
@@ -124,6 +134,7 @@ router.post('/generate', authenticate, async (req, res) => {
               date: parseISO(item.date),
               title: item.title,
               description: item.description,
+              is_holiday: item.is_holiday || false,
             },
           });
         })

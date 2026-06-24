@@ -287,6 +287,7 @@ model CalendarEntry {
   date        DateTime
   title       String
   description String?
+  is_holiday  Boolean  @default(false)
   created_at  DateTime @default(now())
 
   // Relations
