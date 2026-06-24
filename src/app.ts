@@ -36,6 +36,7 @@ import uploadRoutes from './routes/upload.routes';
 import settingsRoutes from './routes/settings.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import chatRoutes from './routes/chat.routes';
+import subscriptionRoutes from './routes/subscription.routes';
 
 // Distribution endpoints - optionally cache get routes
 app.get('/distribution/:projectId', cacheMiddleware(30), getDistributionRule);
@@ -59,6 +60,7 @@ app.use('/storage', uploadRoutes)
 app.use('/settings', settingsRoutes)
 app.use('/dashboard', cacheMiddleware(30), dashboardRoutes)
 app.use('/chat', chatRoutes)
+app.use('/subscriptions', invalidateCacheMiddleware(), cacheMiddleware(30), subscriptionRoutes)
 app.use('/dashboard', invalidateCacheMiddleware(), cacheMiddleware(30), dashboardRoutes)
 
 export default app

@@ -135,6 +135,9 @@ model User {
   created_channels         ChatChannel[]           @relation("ChannelCreator")
   chat_memberships         ChatChannelMember[]
   chat_messages            ChatMessage[]
+  assigned_addons          AddOn[]                 @relation("AddOnAssignee")
+  created_addons           AddOn[]                 @relation("AddOnCreator")
+  created_subscriptions    Subscription[]          @relation("SubscriptionCreator")
 
   // Indexes
   @@index([email])
@@ -162,6 +165,8 @@ model Client {
   uploads          Attachment[]
   knowledge        ClientKnowledge[]
   chat_channels    ChatChannel[]
+  addons           AddOn[]
+  subscriptions    Subscription[]
 
   // Indexes
   @@index([manager_id])
@@ -544,4 +549,52 @@ model ChatMessage {
   @@index([channel_id])
   @@index([sender_id])
   @@map("chat_messages")
+}
+
+model AddOn {
+  id             Int      @id @default(autoincrement())
+  client_id      Int
+  title          String
+  description    String?
+  date           DateTime
+  price          Decimal  @db.Decimal(10, 2)
+  assigned_to_id Int?
+  created_by_id  Int
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  is_deleted     Boolean  @default(false)
+
+  // Relations
+  client      Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  assigned_to User?  @relation("AddOnAssignee", fields: [assigned_to_id], references: [id])
+  created_by  User   @relation("AddOnCreator", fields: [created_by_id], references: [id])
+
+  // Indexes
+  @@index([client_id])
+  @@index([assigned_to_id])
+  @@index([created_by_id])
+  @@map("addons")
+}
+
+model Subscription {
+  id             Int      @id @default(autoincrement())
+  client_id      Int?
+  title          String
+  description    String?
+  price          Decimal  @db.Decimal(10, 2)
+  payment_method String
+  due_date       DateTime
+  created_by_id  Int
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  is_deleted     Boolean  @default(false)
+
+  // Relations
+  client     Client? @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  created_by User    @relation("SubscriptionCreator", fields: [created_by_id], references: [id])
+
+  // Indexes
+  @@index([client_id])
+  @@index([created_by_id])
+  @@map("subscriptions")
 }
