@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { getIO } from '../services/socket.service';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { storage } from '../lib/storage';
 
 const prisma = new PrismaClient();
 
@@ -44,7 +45,8 @@ export async function getChannels(req: AuthRequest, res: Response) {
         const unread_count = await prisma.chatMessage.count({
           where: {
             channel_id: c.id,
-            created_at: { gt: lastReadAt }
+            created_at: { gt: lastReadAt },
+            sender_id: { not: userId }
           }
         });
         
@@ -202,6 +204,49 @@ export async function sendMessage(req: AuthRequest, res: Response) {
     return res.status(201).json(message);
   } catch (error) {
     console.error('Error sending message:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+export async function deleteMessage(req: AuthRequest, res: Response) {
+  try {
+    const channelId = parseInt(req.params.id);
+    const messageId = parseInt(req.params.messageId);
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const message = await prisma.chatMessage.findUnique({
+      where: { id: messageId }
+    });
+
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found' });
+    }
+
+    if (message.sender_id !== userId) {
+      return res.status(403).json({ message: 'You can only delete your own messages' });
+    }
+
+    await prisma.chatMessage.delete({
+      where: { id: messageId }
+    });
+
+    // Delete from cloud storage if it's a file
+    if (message.type === 'FILE' && message.metadata && typeof message.metadata === 'object' && 'url' in message.metadata) {
+      try {
+        await storage.deleteFile(message.metadata.url as string);
+      } catch (err) {
+        console.error('Failed to delete file from storage:', err);
+      }
+    }
+
+    // Notify socket clients
+    const io = getIO();
+    io.to(`channel_${channelId}`).emit('message_deleted', messageId);
+
+    return res.status(200).json({ message: 'Message deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting message:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 }

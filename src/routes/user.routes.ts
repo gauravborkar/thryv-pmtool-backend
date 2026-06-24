@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import prisma from '../lib/prisma';
 
@@ -58,7 +59,7 @@ import bcrypt from 'bcryptjs';
 // POST /users (Admin only)
 router.post('/', authenticate, authorize([1]), async (req: any, res) => {
   try {
-    const { email, password, name, role_ids } = req.body;
+    const { email, password, name, role_ids, custom_permissions } = req.body;
     // Support legacy role_id (single) or new role_ids (array)
     const roleIds: number[] = role_ids
       ? (Array.isArray(role_ids) ? role_ids : [role_ids]).map(Number)
@@ -81,6 +82,7 @@ router.post('/', authenticate, authorize([1]), async (req: any, res) => {
         password: hashedPassword,
         name,
         roles: { connect: roleIds.map((id) => ({ id })) },
+        custom_permissions: custom_permissions !== undefined ? (custom_permissions === null ? Prisma.DbNull : custom_permissions) : undefined,
       },
       include: { roles: { include: { permissions: true } } },
     });
@@ -175,7 +177,7 @@ router.put('/:id', authenticate, authorize([1]), async (req: any, res) => {
       return res.status(400).json({ message: 'Invalid user ID' });
     }
 
-    const { email, password, name, role_ids } = req.body;
+    const { email, password, name, role_ids, custom_permissions } = req.body;
     // Support legacy role_id (single) or new role_ids (array)
     const roleIds: number[] | undefined = role_ids
       ? (Array.isArray(role_ids) ? role_ids : [role_ids]).map(Number)
@@ -199,6 +201,7 @@ router.put('/:id', authenticate, authorize([1]), async (req: any, res) => {
       ...(email && { email }),
       ...(name && { name }),
       ...(roleIds && { roles: { set: roleIds.map((id) => ({ id })) } }),
+      ...(custom_permissions !== undefined && { custom_permissions: custom_permissions === null ? Prisma.DbNull : custom_permissions }),
     };
 
     if (password) {
