@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, authorize, authorizeSection } from '../middleware/auth.middleware';
 import * as clientController from '../controllers/client.controller';
+import * as clientAddOnController from '../controllers/client-addon.controller';
 
 const router = Router();
 
@@ -19,5 +20,11 @@ router.put('/:id', authenticate, authorize([1, 2]), clientController.updateClien
 // Archive a client profile (soft-delete, ID in URL)
 router.delete('/:id', authenticate, authorize([1, 2]), clientController.archiveClient);
 router.post('/:id/archive', authenticate, authorize([1, 2]), clientController.archiveClient);
+
+// Client Add-On routes
+router.get('/:clientId/addons', authenticate, authorizeSection('Clients'), clientAddOnController.getClientAddOns);
+router.post('/:clientId/addons', authenticate, authorize([1, 2]), clientAddOnController.createClientAddOn);
+router.put('/:clientId/addons/:id', authenticate, authorize([1, 2]), clientAddOnController.updateClientAddOn);
+router.delete('/:clientId/addons/:id', authenticate, authorize([1, 2]), clientAddOnController.deleteClientAddOn);
 
 export default router;
