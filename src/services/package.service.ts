@@ -634,11 +634,29 @@ const created = { pkg: createdPkg, persistedItems };
 
 
 
+async function checkPackageRestriction(id: string, user: { roleIds?: number[] }) {
+  const firstThree = await prisma.contentPackage.findMany({
+    orderBy: { created_at: 'asc' },
+    take: 3,
+    select: { id: true },
+  });
+  const firstThreeIds = firstThree.map((p) => p.id);
+
+  if (firstThreeIds.includes(id)) {
+    const isAdmin = user.roleIds?.includes(1);
+    if (!isAdmin) {
+      throw new Error('Forbidden: Only administrators are authorized to update or delete the first three system packages');
+    }
+  }
+}
+
 export const updateContentPackage = async (
   id: string,
   data: UpdateContentPackageInput,
-  user: { id: number }
+  user: { id: number; roleIds?: number[] }
 ) => {
+  await checkPackageRestriction(id, user);
+
   const existing = await prisma.contentPackage.findUnique({
     where: { id },
     include: packageInclude,
@@ -831,7 +849,9 @@ export const updateContentPackage = async (
   return formatContentPackage(pkg);
 };
 
-export const deleteContentPackage = async (id: string) => {
+export const deleteContentPackage = async (id: string, user: { id: number; roleIds?: number[] }) => {
+  await checkPackageRestriction(id, user);
+
   const existing = await prisma.contentPackage.findUnique({ where: { id } });
   if (!existing) {
     throw new Error('Package not found');

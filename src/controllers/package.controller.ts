@@ -163,7 +163,7 @@ export const deletePackage = async (req: AuthRequest, res: Response, _next: Next
   const { id } = req.params;
 
   try {
-    const result = await packageService.deleteContentPackage(id);
+    const result = await packageService.deleteContentPackage(id, user);
 
     await logAction({
       userId: user.id,
