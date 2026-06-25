@@ -504,6 +504,7 @@ async function syncLineItems(
 
 export const getContentPackages = async () => {
   const packages = await prisma.contentPackage.findMany({
+    where: { is_deleted: false },
     include: packageInclude,
     orderBy: { created_at: 'desc' },
   });
@@ -512,8 +513,8 @@ export const getContentPackages = async () => {
 };
 
 export const getContentPackageById = async (id: string) => {
-  const pkg = await prisma.contentPackage.findUnique({
-    where: { id },
+  const pkg = await prisma.contentPackage.findFirst({
+    where: { id, is_deleted: false },
     include: packageInclude,
   });
 
@@ -525,7 +526,9 @@ export const getContentPackageById = async (id: string) => {
 };
 
 export const getPackageHistory = async (packageId: string) => {
-  const pkg = await prisma.contentPackage.findUnique({ where: { id: packageId } });
+  const pkg = await prisma.contentPackage.findFirst({
+    where: { id: packageId, is_deleted: false }
+  });
   if (!pkg) {
     throw new Error('Package not found');
   }
@@ -543,6 +546,13 @@ export const getPackageHistory = async (packageId: string) => {
 };
 
 export const getPackageVersion = async (packageId: string, versionNumber: number) => {
+  const pkg = await prisma.contentPackage.findFirst({
+    where: { id: packageId, is_deleted: false }
+  });
+  if (!pkg) {
+    throw new Error('Package not found');
+  }
+
   const version = await prisma.contentPackageVersion.findUnique({
     where: {
       package_id_version_number: {
@@ -636,6 +646,7 @@ const created = { pkg: createdPkg, persistedItems };
 
 async function checkPackageRestriction(id: string, user: { roleIds?: number[] }) {
   const firstThree = await prisma.contentPackage.findMany({
+    where: { is_deleted: false },
     orderBy: { created_at: 'asc' },
     take: 3,
     select: { id: true },
@@ -657,8 +668,8 @@ export const updateContentPackage = async (
 ) => {
   await checkPackageRestriction(id, user);
 
-  const existing = await prisma.contentPackage.findUnique({
-    where: { id },
+  const existing = await prisma.contentPackage.findFirst({
+    where: { id, is_deleted: false },
     include: packageInclude,
   });
 
@@ -852,12 +863,17 @@ export const updateContentPackage = async (
 export const deleteContentPackage = async (id: string, user: { id: number; roleIds?: number[] }) => {
   await checkPackageRestriction(id, user);
 
-  const existing = await prisma.contentPackage.findUnique({ where: { id } });
+  const existing = await prisma.contentPackage.findFirst({
+    where: { id, is_deleted: false }
+  });
   if (!existing) {
     throw new Error('Package not found');
   }
 
-  await prisma.contentPackage.delete({ where: { id } });
+  await prisma.contentPackage.update({
+    where: { id },
+    data: { is_deleted: true },
+  });
   return { id };
 };
 

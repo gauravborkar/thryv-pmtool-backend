@@ -15,7 +15,7 @@ router.get('/', authenticate, authorize([1]), async (req: any, res) => {
 
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = { is_active: true };
     
     if (search) {
       where.OR = [
@@ -152,17 +152,14 @@ router.delete('/:id', authenticate, authorize([1]), async (req: any, res) => {
       return res.status(400).json({ message: 'Invalid user ID' });
     }
 
-    // Attempt to delete the user
-    await prisma.user.delete({
+    // Soft-delete the user by setting is_active: false
+    await prisma.user.update({
       where: { id: userId },
+      data: { is_active: false },
     });
 
-    res.json({ message: 'User deleted successfully' });
+    res.json({ message: 'User soft-deleted successfully' });
   } catch (error: any) {
-    // If there's a foreign key constraint error, we might want to inform the user
-    if (error.code === 'P2003') {
-      return res.status(400).json({ message: 'Cannot delete user because they are referenced by other records (e.g., tasks or clients).' });
-    }
     if (error.code === 'P2025') {
       return res.status(404).json({ message: 'User not found' });
     }

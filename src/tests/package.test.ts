@@ -46,7 +46,7 @@ describe('Package Access Restriction Tests', () => {
       mockCurrentUser = { id: 1, email: 'admin@thryv.com', roleIds: [1], roles: ['ADMIN'] };
 
       // Mock package lookup
-      prismaMock.contentPackage.findUnique.mockResolvedValue({
+      prismaMock.contentPackage.findFirst.mockResolvedValue({
         id: restrictedId,
         name: 'standard gold',
         current_version: 1,
@@ -82,7 +82,7 @@ describe('Package Access Restriction Tests', () => {
       mockCurrentUser = { id: 2, email: 'manager@thryv.com', roleIds: [2], roles: ['MANAGER'] };
 
       // Mock package lookup
-      prismaMock.contentPackage.findUnique.mockResolvedValue({
+      prismaMock.contentPackage.findFirst.mockResolvedValue({
         id: restrictedId,
         name: 'standard gold',
         current_version: 1,
@@ -104,7 +104,7 @@ describe('Package Access Restriction Tests', () => {
       mockCurrentUser = { id: 2, email: 'manager@thryv.com', roleIds: [2], roles: ['MANAGER'] };
 
       // Mock package lookup
-      prismaMock.contentPackage.findUnique.mockResolvedValue({
+      prismaMock.contentPackage.findFirst.mockResolvedValue({
         id: normalId,
         name: 'Normal Package',
         current_version: 1,
@@ -144,9 +144,9 @@ describe('Package Access Restriction Tests', () => {
       // Mock top 3 packages query
       prismaMock.contentPackage.findMany.mockResolvedValue(mockFirstThree as any);
 
-      // Mock findUnique and delete
-      prismaMock.contentPackage.findUnique.mockResolvedValue({ id: restrictedId } as any);
-      prismaMock.contentPackage.delete.mockResolvedValue({ id: restrictedId } as any);
+      // Mock findFirst and update
+      prismaMock.contentPackage.findFirst.mockResolvedValue({ id: restrictedId } as any);
+      prismaMock.contentPackage.update.mockResolvedValue({ id: restrictedId } as any);
 
       const res = await request(app).delete(`/packages/${restrictedId}`);
 
@@ -160,8 +160,8 @@ describe('Package Access Restriction Tests', () => {
       // Mock top 3 packages query
       prismaMock.contentPackage.findMany.mockResolvedValue(mockFirstThree as any);
 
-      // Mock findUnique
-      prismaMock.contentPackage.findUnique.mockResolvedValue({ id: restrictedId } as any);
+      // Mock findFirst
+      prismaMock.contentPackage.findFirst.mockResolvedValue({ id: restrictedId } as any);
 
       const res = await request(app).delete(`/packages/${restrictedId}`);
 
@@ -175,9 +175,9 @@ describe('Package Access Restriction Tests', () => {
       // Mock top 3 packages query
       prismaMock.contentPackage.findMany.mockResolvedValue(mockFirstThree as any);
 
-      // Mock findUnique and delete
-      prismaMock.contentPackage.findUnique.mockResolvedValue({ id: normalId } as any);
-      prismaMock.contentPackage.delete.mockResolvedValue({ id: normalId } as any);
+      // Mock findFirst and update
+      prismaMock.contentPackage.findFirst.mockResolvedValue({ id: normalId } as any);
+      prismaMock.contentPackage.update.mockResolvedValue({ id: normalId } as any);
 
       const res = await request(app).delete(`/packages/${normalId}`);
 

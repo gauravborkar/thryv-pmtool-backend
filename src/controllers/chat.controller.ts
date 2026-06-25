@@ -14,6 +14,7 @@ export async function getChannels(req: AuthRequest, res: Response) {
     // Find channels where user is a member
     const channels = await prisma.chatChannel.findMany({
       where: {
+        is_deleted: false,
         members: {
           some: {
             user_id: userId
@@ -105,6 +106,7 @@ export async function createChannel(req: AuthRequest, res: Response) {
       const existing = await prisma.chatChannel.findFirst({
         where: {
           type: 'DIRECT',
+          is_deleted: false,
           AND: memberIds.map((id: number) => ({
             members: { some: { user_id: id } }
           }))
@@ -258,8 +260,11 @@ export async function deleteChannel(req: AuthRequest, res: Response) {
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
     // Ensure the channel exists
-    const channel = await prisma.chatChannel.findUnique({
-      where: { id: channelId }
+    const channel = await prisma.chatChannel.findFirst({
+      where: {
+        id: channelId,
+        is_deleted: false
+      }
     });
 
     if (!channel) {
@@ -269,8 +274,9 @@ export async function deleteChannel(req: AuthRequest, res: Response) {
     // Optionally you could enforce that only the creator or admin can delete it here
     // but the route will use the authorize middleware anyway
 
-    await prisma.chatChannel.delete({
-      where: { id: channelId }
+    await prisma.chatChannel.update({
+      where: { id: channelId },
+      data: { is_deleted: true }
     });
 
     return res.status(200).json({ message: 'Channel deleted successfully' });
