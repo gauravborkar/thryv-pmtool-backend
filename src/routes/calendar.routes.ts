@@ -171,9 +171,14 @@ router.get('/', authenticate, async (req, res) => {
     };
 
     if (roleIds.includes(3) || roles.includes('DESIGNER')) {
-      where.task = { assigned_designer_id: userId };
+      where.task = { assigned_designer_id: userId, is_deleted: false };
     } else if (roleIds.includes(2) || roles.includes('MANAGER')) {
-      where.task = { created_by_manager_id: userId };
+      where.task = { created_by_manager_id: userId, is_deleted: false };
+    } else {
+      where.OR = [
+        { task: null },
+        { task: { is_deleted: false } }
+      ];
     }
 
     const entries = await prisma.calendarEntry.findMany({
@@ -332,6 +337,44 @@ router.patch('/:id', authenticate, authorize([1, 2]), async (req, res) => {
     });
   } catch (error: any) {
     res.status(500).json({ message: error.message || 'Failed to update calendar entry' });
+  }
+});
+
+/**
+ * @route DELETE /calendar/:id
+ * @desc Delete calendar entry and soft-delete linked task (Manager/Admin only)
+ * @access Private (Admin, Manager)
+ */
+router.delete('/:id', authenticate, authorize([1, 2]), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ message: 'Invalid calendar entry ID' });
+    }
+
+    const existing = await prisma.calendarEntry.findUnique({
+      where: { id },
+      include: { task: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Calendar entry not found' });
+    }
+
+    if (existing.task) {
+      await prisma.task.update({
+        where: { id: existing.task.id },
+        data: { is_deleted: true },
+      });
+    }
+
+    await prisma.calendarEntry.delete({
+      where: { id },
+    });
+
+    res.status(200).json({ success: true, message: 'Calendar entry deleted' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Failed to delete calendar entry' });
   }
 });
 

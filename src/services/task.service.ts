@@ -177,7 +177,9 @@ function canViewTask(roles: string[], userId: number, task: Task, roleIds?: numb
 }
 
 export async function listTasks(filters: TaskFilters) {
-  const where: Prisma.TaskWhereInput = {};
+  const where: Prisma.TaskWhereInput = {
+    is_deleted: false,
+  };
 
   const { isAdmin, isManager, isWorker } = getUserRoleFlags(filters.roles, filters.roleIds);
 
@@ -267,7 +269,7 @@ export async function getTaskById(taskId: number, roles: string[], userId: numbe
     include: includeTaskRelations(),
   });
 
-  if (!task) {
+  if (!task || task.is_deleted) {
     throw new Error('Task not found');
   }
 
@@ -626,7 +628,7 @@ export async function deleteComment(
 
 export async function deleteTask(taskId: number, roles: string[], userId: number, roleIds?: number[]) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
-  if (!existing) throw new Error('Task not found');
+  if (!existing || existing.is_deleted) throw new Error('Task not found');
 
   const { isAdmin, isManager } = getUserRoleFlags(roles, roleIds);
 
@@ -634,7 +636,10 @@ export async function deleteTask(taskId: number, roles: string[], userId: number
     throw new Error('Forbidden: You do not have permission to delete this task');
   }
 
-  await prisma.task.delete({ where: { id: taskId } });
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { is_deleted: true },
+  });
   return { id: taskId };
 }
 

@@ -200,6 +200,7 @@ model ContentPackage {
   description     String?
   created_by_id   Int
   current_version Int      @default(1)
+  is_deleted      Boolean  @default(false)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
@@ -327,6 +328,7 @@ model Task {
   created_by_manager_id Int
   created_at            DateTime  @default(now())
   updated_at            DateTime  @updatedAt
+  is_deleted            Boolean   @default(false)
 
   // Relations
   calendar_entry     CalendarEntry? @relation(fields: [calendar_entry_id], references: [id])
@@ -347,6 +349,7 @@ model Task {
   @@index([publish_date])
   @@index([priority])
   @@index([created_by_manager_id])
+  @@index([is_deleted])
   @@map("tasks")
 }
 
@@ -506,6 +509,7 @@ model ChatChannel {
   created_by_id Int
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
+  is_deleted    Boolean  @default(false)
 
   client     Client?             @relation(fields: [client_id], references: [id], onDelete: Cascade)
   created_by User                @relation("ChannelCreator", fields: [created_by_id], references: [id])
