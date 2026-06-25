@@ -100,14 +100,15 @@ describe('Package Access Restriction Tests', () => {
       expect(res.body.message).toContain('Only administrators are authorized');
     });
 
-    it('should allow MANAGER to update a non-restricted package', async () => {
+    it('should allow MANAGER to update a non-restricted package they created', async () => {
       mockCurrentUser = { id: 2, email: 'manager@thryv.com', roleIds: [2], roles: ['MANAGER'] };
 
-      // Mock package lookup
+      // Mock package lookup with created_by_id matching manager
       prismaMock.contentPackage.findFirst.mockResolvedValue({
         id: normalId,
         name: 'Normal Package',
         current_version: 1,
+        created_by_id: 2,
         line_items: [],
       } as any);
 
@@ -124,7 +125,7 @@ describe('Package Access Restriction Tests', () => {
         line_items: [],
         created_at: new Date(),
         updated_at: new Date(),
-        created_by: { id: 1, email: 'admin@thryv.com', name: 'Admin' }
+        created_by: { id: 2, email: 'manager@thryv.com', name: 'Manager' }
       } as any);
 
       const res = await request(app)
@@ -134,6 +135,29 @@ describe('Package Access Restriction Tests', () => {
       if (res.status !== 200) console.log("MANAGER UPDATE ERROR:", res.body);
       expect(res.status).toBe(200);
       expect(res.body.data.name).toBe('Updated Normal');
+    });
+
+    it('should NOT allow MANAGER to update a non-restricted package created by another user', async () => {
+      mockCurrentUser = { id: 2, email: 'manager@thryv.com', roleIds: [2], roles: ['MANAGER'] };
+
+      // Mock package lookup with created_by_id NOT matching manager
+      prismaMock.contentPackage.findFirst.mockResolvedValue({
+        id: normalId,
+        name: 'Normal Package',
+        current_version: 1,
+        created_by_id: 3,
+        line_items: [],
+      } as any);
+
+      // Mock top 3 packages query
+      prismaMock.contentPackage.findMany.mockResolvedValue(mockFirstThree as any);
+
+      const res = await request(app)
+        .put(`/packages/${normalId}`)
+        .send({ name: 'Updated Normal', items: [{ type: 'REEL', platform: 'Instagram', cycle: 'WEEKLY', quantity: 1 }] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('You are only authorized to update content packages that you created');
     });
   });
 
@@ -169,20 +193,35 @@ describe('Package Access Restriction Tests', () => {
       expect(res.body.message).toContain('Only administrators are authorized');
     });
 
-    it('should allow MANAGER to delete a non-restricted package', async () => {
+    it('should allow MANAGER to delete a non-restricted package they created', async () => {
       mockCurrentUser = { id: 2, email: 'manager@thryv.com', roleIds: [2], roles: ['MANAGER'] };
 
       // Mock top 3 packages query
       prismaMock.contentPackage.findMany.mockResolvedValue(mockFirstThree as any);
 
-      // Mock findFirst and update
-      prismaMock.contentPackage.findFirst.mockResolvedValue({ id: normalId } as any);
+      // Mock findFirst with created_by_id matching manager, and update
+      prismaMock.contentPackage.findFirst.mockResolvedValue({ id: normalId, created_by_id: 2 } as any);
       prismaMock.contentPackage.update.mockResolvedValue({ id: normalId } as any);
 
       const res = await request(app).delete(`/packages/${normalId}`);
 
       expect(res.status).toBe(200);
       expect(res.body.message).toBe('Package deleted successfully');
+    });
+
+    it('should NOT allow MANAGER to delete a non-restricted package created by another user', async () => {
+      mockCurrentUser = { id: 2, email: 'manager@thryv.com', roleIds: [2], roles: ['MANAGER'] };
+
+      // Mock top 3 packages query
+      prismaMock.contentPackage.findMany.mockResolvedValue(mockFirstThree as any);
+
+      // Mock findFirst with created_by_id NOT matching manager
+      prismaMock.contentPackage.findFirst.mockResolvedValue({ id: normalId, created_by_id: 3 } as any);
+
+      const res = await request(app).delete(`/packages/${normalId}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('You are only authorized to delete content packages that you created');
     });
   });
 });
