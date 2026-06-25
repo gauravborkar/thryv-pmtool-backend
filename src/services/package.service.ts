@@ -677,6 +677,12 @@ export const updateContentPackage = async (
     throw new Error('Package not found');
   }
 
+  const isAdmin = user.roleIds?.includes(1);
+  const isCreator = existing.created_by_id === user.id;
+  if (!isAdmin && !isCreator) {
+    throw new Error('Forbidden: You are only authorized to update content packages that you created');
+  }
+
   validatePackageInput(data);
 
   const nextName = data.name !== undefined ? data.name.trim() : existing.name;
@@ -874,6 +880,12 @@ export const deleteContentPackage = async (id: string, user: { id: number; roleI
   });
   if (!existing) {
     throw new Error('Package not found');
+  }
+
+  const isAdmin = user.roleIds?.includes(1);
+  const isCreator = existing.created_by_id === user.id;
+  if (!isAdmin && !isCreator) {
+    throw new Error('Forbidden: You are only authorized to delete content packages that you created');
   }
 
   await prisma.contentPackage.update({
