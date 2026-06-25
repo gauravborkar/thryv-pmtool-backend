@@ -741,6 +741,9 @@ export const updateContentPackage = async (
       );
 
       return updated;
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     });
 
     return formatContentPackage(pkg);
@@ -855,6 +858,9 @@ export const updateContentPackage = async (
     );
 
     return updated;
+  }, {
+    maxWait: 10000,
+    timeout: 30000,
   });
 
   return formatContentPackage(pkg);
