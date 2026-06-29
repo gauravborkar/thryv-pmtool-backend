@@ -95,21 +95,62 @@ router.post('/import', authenticate, upload.single('file'), async (req, res) => 
  */
 router.post('/generate', authenticate, async (req, res) => {
   try {
-    const { client_id, month, model, instructions } = req.body;
+    const { client_id, month, model, instructions, strategy, preview } = req.body;
 
     if (!client_id || !month) {
       return res.status(400).json({ message: 'client_id and month are required' });
     }
 
     const dbContext = await buildContext(Number(client_id));
+    
+    let strategyContext = '';
+    if (strategy) {
+      let mixDataFormatted = '';
+      if (strategy.contentMixData) {
+        for (const [type, items] of Object.entries(strategy.contentMixData)) {
+          const typeItems = items as any[];
+          const validItems = typeItems.filter(item => Number(item.count) > 0);
+          if (validItems.length > 0) {
+            mixDataFormatted += `\n        ${type.toUpperCase()}:`;
+            validItems.forEach((item, index) => {
+              mixDataFormatted += `\n          - Instruction ${index + 1}: generate ${item.count} posts`;
+              if (item.startDate) mixDataFormatted += ` | Date: ${item.startDate}`;
+              if (item.description) mixDataFormatted += ` | Description/Focus: ${item.description}`;
+            });
+          }
+        }
+      }
 
-    const prompt = `You are Sentari. Generate a 30-day content calendar for the month of ${month}. 
+      strategyContext = `
+      --- AI Strategy Planner Constraints ---
+      Please strictly follow these strategy constraints provided by the user:
+      - Goal: ${strategy.goal}
+      - Campaign Focus: ${strategy.campaignFocus}
+      - Platforms: ${strategy.platforms?.join(', ')}
+      - Target Audience: ${strategy.targetAudience?.join(', ')}
+      - Content Mix Requirements: ${mixDataFormatted}
+      - Include Holidays: ${strategy.includeHolidays}
+      - Include Trending: ${strategy.includeTrending}
+      - Include Competitors: ${strategy.includeCompetitors}
+      - Creativity Level: ${strategy.creativityLevel}
+      
+      CRITICAL INSTRUCTION: The user has provided an EXACT list of posts that MUST be included on specific dates with specific descriptions under the 'Content Mix Requirements'. 
+      For each item in the Content Mix Requirements, you MUST create a calendar entry on the exact 'Date' specified, with a title corresponding to the format (e.g. 'Reel', 'Carousel') and the exact description provided. 
+      Do NOT change these dates, do NOT invent random posts to replace them, and do NOT generate any filler or extra posts. You must ONLY output entries for the specific items requested in the Content Mix Requirements, plus any relevant holidays/events.
+      ---------------------------------------
+      `;
+    }
+
+    const prompt = `You are a strict data-mapping AI assistant. Your ONLY job is to take the user's specific Content Mix Requirements and format them into a JSON array, along with any major public holidays for ${month}. 
     
     Here is the client context extracted from their database and spreadsheets:
     ${dbContext}
+    ${strategyContext}
 
-    Follow these instructions: ${instructions || 'Provide a good mix of content based on the context provided.'}
+    Follow these instructions: ${instructions || 'Provide content based on the context provided.'}
     Also, automatically search for all the public holidays of India and major global/national special events (e.g. World Environment Day, Independence Day, etc.) for the month, and mark them by setting is_holiday to true and clearly name the event in the title.
+    IMPORTANT: You must ONLY output the EXACT posts requested in the Content Mix Requirements. If the user asked for 3 specific posts, your JSON should contain EXACTLY those 3 posts (plus any holidays). DO NOT generate a post for every day. DO NOT invent your own posts. DO NOT pad the array with extra data.
+    
     Ensure the output is valid JSON in the exact format: { "entries": [{ "date": "YYYY-MM-DD", "title": "Post Title", "description": "Post Description", "is_holiday": false }] }`;
 
     const generatedJson = await generateCalendarData(prompt, (model as AIModelType) || 'auto');
@@ -124,8 +165,16 @@ router.post('/generate', authenticate, async (req, res) => {
       parsedData = JSON.parse(cleaned);
     }
 
-    // Save the generated entries into the database
+    // Save the generated entries into the database (unless preview is true)
     if (parsedData && Array.isArray(parsedData.entries)) {
+      
+      if (preview) {
+        return res.status(200).json({
+          message: 'Calendar preview generated successfully',
+          data: parsedData.entries,
+        });
+      }
+
       const createdEntries = await Promise.all(
         parsedData.entries.map(async (item: any) => {
           return prisma.calendarEntry.create({
