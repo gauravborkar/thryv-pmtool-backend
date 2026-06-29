@@ -330,6 +330,7 @@ model Task {
   created_at            DateTime  @default(now())
   updated_at            DateTime  @updatedAt
   is_deleted            Boolean   @default(false)
+  drive_link            String?
 
   // Relations
   calendar_entry     CalendarEntry? @relation(fields: [calendar_entry_id], references: [id])

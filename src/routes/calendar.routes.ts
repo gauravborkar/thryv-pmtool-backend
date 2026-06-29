@@ -314,6 +314,7 @@ router.post('/', authenticate, authorize([1, 2]), async (req, res) => {
         designer_due_date: designerDueDate,
         assigned_designer_id: assignedDesignerId ? Number(assignedDesignerId) : null,
         created_by_manager_id: (req as any).user.id,
+        drive_link: req.body.driveLink || null,
       },
       include: {
         status: true,
