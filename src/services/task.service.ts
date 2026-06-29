@@ -44,6 +44,7 @@ export type CreateTaskPayload = {
   taskTypeId?: number;
   taskTypeIds?: number[];
   startDate?: string;
+  driveLink?: string;
 };
 
 export type UpdateTaskPayload = {
@@ -56,6 +57,7 @@ export type UpdateTaskPayload = {
   taskTypeIds?: number[];
   assignedRoleIds?: number[];
   startDate?: string;
+  driveLink?: string;
 };
 
 export type CommentPayload = {
@@ -157,6 +159,7 @@ function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includ
     })),
     createdAt: task.created_at,
     updatedAt: task.updated_at,
+    driveLink: task.drive_link,
   };
 }
 
@@ -305,6 +308,7 @@ export async function createTask(payload: CreateTaskPayload, managerId: number) 
       designer_due_date: designerDueDate,
       assigned_designer_id: payload.assignedDesignerId,
       created_by_manager_id: managerId,
+      drive_link: payload.driveLink,
     },
     include: includeTaskRelations(),
   });
@@ -376,6 +380,7 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, rol
       start_date: startDate,
       publish_date: publishDate,
       designer_due_date: designerDueDate,
+      drive_link: payload.driveLink !== undefined ? payload.driveLink : existing.drive_link,
     },
     include: includeTaskRelations(),
   });
