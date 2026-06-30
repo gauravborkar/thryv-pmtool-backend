@@ -100,14 +100,27 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
 
     const user = (req as AuthRequest).user;
     let designerMetrics = undefined;
+    let adminMetrics = undefined;
+    
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    if (user && (user.roleIds.includes(1) || user.roles.some((r) => r.toUpperCase() === 'ADMIN'))) {
+      const [awaitingApproval, postsThisMonth] = await Promise.all([
+        prisma.task.count({ where: { status: { name: { in: ['REVIEW', 'UPLOADED'] } } } }),
+        prisma.task.count({ where: { status: { name: { in: ['DONE', 'APPROVED'] } }, updated_at: { gte: startOfMonth } } })
+      ]);
+      adminMetrics = {
+        awaitingApproval,
+        postsThisMonth,
+        revisionRounds: '1.2x'
+      };
+    }
 
     if (user && (user.roleIds.includes(3) || user.roles.some((r) => ['DESIGNER', 'VIDEOGRAPHER', 'EDITOR'].includes(r.toUpperCase())))) {
       const startOfWeek = new Date(today);
       startOfWeek.setDate(today.getDate() - today.getDay());
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 7);
-
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
       const [
         designerTotalTasks,
@@ -435,7 +448,8 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
         aiSuggestion,
         performanceChart,
         postsThisMonth,
-        designerMetrics
+        designerMetrics,
+        adminMetrics
       }
     });
   } catch (error) {
