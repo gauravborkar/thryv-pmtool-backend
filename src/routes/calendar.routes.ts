@@ -209,7 +209,7 @@ router.post('/generate', authenticate, async (req, res) => {
  */
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { client_id, month } = req.query;
+    const { client_id, month, startDate, endDate } = req.query;
     const monthDate =
       typeof month === 'string' && month
         ? parseISO(month.length === 7 ? `${month}-01` : month)
@@ -222,7 +222,12 @@ router.get('/', authenticate, async (req, res) => {
 
     const where: any = {
       client_id: client_id ? Number(client_id) : undefined,
-      date: monthDate
+      date: (startDate && endDate)
+        ? {
+            gte: parseISO(String(startDate)),
+            lte: parseISO(String(endDate)),
+          }
+        : monthDate
         ? {
             gte: startOfMonth(monthDate),
             lte: endOfMonth(monthDate),
