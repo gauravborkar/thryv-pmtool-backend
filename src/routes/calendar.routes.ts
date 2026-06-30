@@ -301,9 +301,17 @@ router.get('/', authenticate, async (req, res) => {
         : undefined,
     };
 
-    if (roleIds.includes(3) || roles.includes('DESIGNER')) {
+    const isAdmin = roleIds.includes(1) || roles.includes('ADMIN');
+    const isManager = roleIds.includes(2) || roles.includes('MANAGER');
+    const isWorker =
+      roleIds.includes(3) ||
+      roleIds.includes(5) ||
+      roleIds.includes(6) ||
+      roles.some((r: string) => ['DESIGNER', 'VIDEOGRAPHER', 'EDITOR'].includes(r));
+
+    if (isWorker && !isManager && !isAdmin) {
       where.task = { assigned_designer_id: userId, is_deleted: false };
-    } else if (roleIds.includes(2) || roles.includes('MANAGER')) {
+    } else if (isManager && !isAdmin) {
       where.task = { created_by_manager_id: userId, is_deleted: false };
     } else {
       where.OR = [
