@@ -312,7 +312,10 @@ router.get('/', authenticate, async (req, res) => {
     if (isWorker && !isManager && !isAdmin) {
       where.task = { assigned_designer_id: userId, is_deleted: false };
     } else if (isManager && !isAdmin) {
-      where.task = { created_by_manager_id: userId, is_deleted: false };
+      where.OR = [
+        { task: null },
+        { task: { created_by_manager_id: userId, is_deleted: false } }
+      ];
     } else {
       where.OR = [
         { task: null },
