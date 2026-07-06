@@ -165,22 +165,24 @@ router.post('/generate', authenticate, async (req, res) => {
 
     const targetMonthString = format(parseISO(`${month}-01`), 'MMMM yyyy');
 
-    const prompt = `You are a strict data-mapping AI assistant. Your ONLY job is to take the user's specific Content Mix Requirements and format them into a JSON array for the TARGET MONTH: ${targetMonthString} (${month}). 
+    const prompt = `You are an expert AI social media strategist. Your job is to take the user's Content Mix Requirements and format them into a highly-researched JSON array for the TARGET MONTH: ${targetMonthString} (${month}). 
     
-    Here is the client context extracted from their database and spreadsheets:
+    Here is the client context extracted from their database:
     ${dbContext}
     ${strategyContext}
 
     Follow these instructions: ${instructions || 'Provide content based on the context provided.'}
-    Also, automatically search for all the public holidays of India and major global/national special events (e.g. World Environment Day, Independence Day, etc.) for the TARGET MONTH: ${targetMonthString} (${month}), and mark them by setting is_holiday to true and clearly name the event in the title.
+    Also, automatically search for public holidays of India and major global special events for the TARGET MONTH: ${targetMonthString} (${month}), setting is_holiday to true.
     
     IMPORTANT RULES:
-    1. ALL generated post dates MUST fall exactly within the TARGET MONTH: ${targetMonthString} (${month}). Never generate dates for past or future years. (For example, if the target month is August 2026, generate dates like "2026-08-05").
-    2. If a specific Date is provided in the Content Mix Requirements, use that exact date. If no date is provided, distribute the requested number of posts evenly throughout the TARGET MONTH.
-    3. If a Description/Focus is provided in the Content Mix Requirements, you MUST use that exact description or heavily base the post content on it.
-    4. You must ONLY output the EXACT number of posts requested in the Content Mix Requirements (plus holidays). Do NOT invent extra posts.
+    1. ALL generated post dates MUST fall exactly within the TARGET MONTH. Never generate dates for past or future years.
+    2. Exact Dates/Counts: Distribute the requested number of posts evenly throughout the TARGET MONTH unless a specific Date is provided.
+    3. CONTENT PILLARS & CREATIVITY: Strongly align every post with the provided "Content Pillars". You MUST generate a highly detailed and creative 'description' for EVERY post. Do NOT leave it empty.
+    4. INSTAGRAM PORTAL & REFERENCE LINKS: Actively analyze the provided 'Client Instagram Portal' to avoid duplicating existing themes. Use the 'Reference / Inspirational Links' to gauge trending formats, hashtags, and niche standards.
+    5. DEDICATED FIELDS: For video formats (e.g. Reels), you MUST generate a 'transcript', 'hashtags', and 'reference_links' (inspiration links) in their dedicated JSON fields.
+    6. Do NOT invent extra posts beyond the requested count (plus holidays).
     
-    Ensure the output is valid JSON in the exact format: { "entries": [{ "date": "YYYY-MM-DD", "title": "Post Title (Format)", "description": "Post Description", "is_holiday": false }] }`;
+    Ensure the output is valid JSON in the exact format: { "entries": [{ "date": "YYYY-MM-DD", "title": "Post Title (Format)", "description": "Caption text goes here", "transcript": "Transcript goes here", "hashtags": "#tag1 #tag2", "reference_links": "url1", "is_holiday": false }] }`;
 
     const generatedJson = await generateCalendarData(prompt, (model as AIModelType) || 'auto');
     
@@ -212,6 +214,9 @@ router.post('/generate', authenticate, async (req, res) => {
               date: parseISO(item.date),
               title: item.title,
               description: item.description,
+              transcript: item.transcript,
+              hashtags: item.hashtags,
+              reference_links: item.reference_links,
               is_holiday: item.is_holiday || false,
             },
           });
@@ -252,6 +257,9 @@ router.post('/save-preview', authenticate, async (req, res) => {
             date: parseISO(item.date),
             title: item.title,
             description: item.description,
+            transcript: item.transcript,
+            hashtags: item.hashtags,
+            reference_links: item.reference_links,
             is_holiday: item.is_holiday || false,
           },
         });
