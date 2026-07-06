@@ -85,6 +85,15 @@ export async function buildContext(client_id: number): Promise<string> {
     if (brand.briefGuidelines) {
       context += `--- Creative Brief / Guidelines ---\n${brand.briefGuidelines}\n\n`;
     }
+    if (brand.contentPillars) {
+      context += `--- Content Pillars ---\n${brand.contentPillars}\n\n`;
+    }
+    if (brand.instagramPortal) {
+      context += `--- Client Instagram Portal ---\n${brand.instagramPortal}\n\n`;
+    }
+    if (brand.referenceLinks) {
+      context += `--- Reference / Inspirational Links ---\n${brand.referenceLinks}\n\n`;
+    }
   }
 
   // 2. Fetch Spreadsheet Knowledge
