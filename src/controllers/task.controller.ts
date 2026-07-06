@@ -80,6 +80,12 @@ export const createTask = async (req: AuthRequest, res: Response) => {
     req.body.title = sanitizeInput(title);
     if (req.body.brief) req.body.brief = sanitizeInput(req.body.brief);
     if (req.body.postSpecs) req.body.postSpecs = sanitizeInput(req.body.postSpecs);
+    if (req.body.platformSpecs && Array.isArray(req.body.platformSpecs)) {
+      req.body.platformSpecs = req.body.platformSpecs.map((spec: any) => ({
+        platformId: Number(spec.platformId),
+        postSpecs: spec.postSpecs ? sanitizeInput(String(spec.postSpecs)) : '',
+      }));
+    }
 
     const task = await taskService.createTask(req.body, req.user!.id);
     res.status(201).json({
@@ -103,6 +109,12 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
     if (req.body.title) req.body.title = sanitizeInput(req.body.title);
     if (req.body.brief) req.body.brief = sanitizeInput(req.body.brief);
     if (req.body.postSpecs) req.body.postSpecs = sanitizeInput(req.body.postSpecs);
+    if (req.body.platformSpecs && Array.isArray(req.body.platformSpecs)) {
+      req.body.platformSpecs = req.body.platformSpecs.map((spec: any) => ({
+        platformId: Number(spec.platformId),
+        postSpecs: spec.postSpecs ? sanitizeInput(String(spec.postSpecs)) : '',
+      }));
+    }
 
     const task = await taskService.updateTask(taskId, req.body, req.user!.roles, req.user!.id, req.user!.roleIds);
     res.status(200).json({
@@ -365,6 +377,20 @@ export const getTaskTypes = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     res.status(500).json({
       message: error instanceof Error ? error.message : 'Failed to retrieve task types',
+    });
+  }
+};
+
+export const getSocialPlatforms = async (req: AuthRequest, res: Response) => {
+  try {
+    const platforms = await taskService.getSocialPlatforms();
+    res.status(200).json({
+      message: 'Social platforms retrieved successfully',
+      data: platforms,
+    });
+  } catch (error) {
+    res.status(550).json({
+      message: error instanceof Error ? error.message : 'Failed to retrieve social platforms',
     });
   }
 };

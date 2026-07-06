@@ -34,6 +34,7 @@ export type CreateTaskPayload = {
   title: string;
   brief?: string;
   postSpecs?: string;
+  platformSpecs?: { platformId: number; postSpecs: string }[];
   publishDate: string;
   priority?: number;
   calendarEntryId?: number;
@@ -51,6 +52,7 @@ export type UpdateTaskPayload = {
   title?: string;
   brief?: string;
   postSpecs?: string;
+  platformSpecs?: { platformId: number; postSpecs: string }[];
   publishDate?: string;
   priority?: number;
   taskTypeId?: number;
@@ -102,6 +104,11 @@ function includeTaskRelations() {
         user: { select: { id: true, name: true, email: true } },
       },
     },
+    platform_specs: {
+      include: {
+        platform: true,
+      },
+    },
   };
 }
 
@@ -115,7 +122,16 @@ function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includ
     id: task.id,
     title: task.title,
     brief,
-    postSpecs,
+    postSpecs: task.platform_specs && task.platform_specs.length > 0
+      ? task.platform_specs.map(ps => `${ps.platform.name}: ${ps.post_specs || ''}`).join('\n')
+      : postSpecs,
+    platformSpecs: task.platform_specs
+      ? task.platform_specs.map(ps => ({
+          platformId: ps.platform_id,
+          platformName: ps.platform.name,
+          postSpecs: ps.post_specs || '',
+        }))
+      : [],
     status: task.status.name,
     statusId: task.status_id,
     priority: task.priority,
@@ -309,16 +325,25 @@ export async function createTask(payload: CreateTaskPayload, managerId: number) 
       assigned_designer_id: payload.assignedDesignerId,
       created_by_manager_id: managerId,
       drive_link: payload.driveLink,
+      platform_specs: payload.platformSpecs && payload.platformSpecs.length > 0
+        ? {
+            create: payload.platformSpecs.map(spec => ({
+              platform_id: Number(spec.platformId),
+              post_specs: spec.postSpecs,
+            }))
+          }
+        : undefined,
     },
     include: includeTaskRelations(),
   });
 
-  if (payload.brief || payload.postSpecs) {
+  const combinedSpecs = payload.postSpecs || (payload.platformSpecs ? payload.platformSpecs.map(s => s.postSpecs).filter(Boolean).join('\n') : '');
+  if (payload.brief || combinedSpecs) {
     if (payload.calendarEntryId) {
       await prisma.calendarEntry.update({
         where: { id: payload.calendarEntryId },
         data: {
-          description: `${payload.brief || ''}\n\n${payload.postSpecs || ''}`,
+          description: `${payload.brief || ''}\n\n${combinedSpecs}`,
         },
       });
     }
@@ -366,6 +391,16 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, rol
         ? (payload.taskTypeId ? Number(payload.taskTypeId) : null) 
         : existing.task_type_id);
 
+  const platformSpecsUpdate = payload.platformSpecs !== undefined
+    ? {
+        deleteMany: {},
+        create: payload.platformSpecs.map(spec => ({
+          platform_id: Number(spec.platformId),
+          post_specs: spec.postSpecs,
+        }))
+      }
+    : undefined;
+
   const task = await prisma.task.update({
     where: { id: taskId },
     data: {
@@ -381,11 +416,12 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, rol
       publish_date: publishDate,
       designer_due_date: designerDueDate,
       drive_link: payload.driveLink !== undefined ? payload.driveLink : existing.drive_link,
+      platform_specs: platformSpecsUpdate,
     },
     include: includeTaskRelations(),
   });
 
-  if (existing.calendar_entry_id && (payload.brief !== undefined || payload.postSpecs !== undefined || payload.title)) {
+  if (existing.calendar_entry_id && (payload.brief !== undefined || payload.postSpecs !== undefined || payload.platformSpecs !== undefined || payload.title)) {
     const calendarEntry = await prisma.calendarEntry.findUnique({
       where: { id: existing.calendar_entry_id },
     });
@@ -395,7 +431,10 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, rol
     const existingSpecs = parts.slice(1).join('\n\n') || '';
 
     const newBrief = payload.brief !== undefined ? payload.brief : existingBrief;
-    const newSpecs = payload.postSpecs !== undefined ? payload.postSpecs : existingSpecs;
+    let newSpecs = payload.postSpecs !== undefined ? payload.postSpecs : existingSpecs;
+    if (payload.platformSpecs !== undefined) {
+      newSpecs = payload.platformSpecs.map(s => s.postSpecs).filter(Boolean).join('\n');
+    }
 
     await prisma.calendarEntry.update({
       where: { id: existing.calendar_entry_id },
@@ -751,6 +790,12 @@ export async function deleteTaskAttachment(
 
 export async function getTaskTypes() {
   return prisma.taskType.findMany({
+    orderBy: { name: 'asc' },
+  });
+}
+
+export async function getSocialPlatforms() {
+  return prisma.socialPlatform.findMany({
     orderBy: { name: 'asc' },
   });
 }

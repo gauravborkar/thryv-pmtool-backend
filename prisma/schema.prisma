@@ -101,6 +101,7 @@ model SocialPlatform {
 
   line_items         ContentPackageLineItem[]
   version_line_items ContentPackageVersionLineItem[]
+  task_specs         TaskPlatformSpec[]
 
   @@map("social_platforms")
 }
@@ -333,16 +334,17 @@ model Task {
   drive_link            String?
 
   // Relations
-  calendar_entry     CalendarEntry? @relation(fields: [calendar_entry_id], references: [id])
-  status             TaskStatus     @relation(fields: [status_id], references: [id])
-  task_type          TaskType?      @relation(fields: [task_type_id], references: [id])
-  task_types         TaskType[]     @relation("TaskToTaskTypes")
-  assigned_designer  User?          @relation("TaskDesigner", fields: [assigned_designer_id], references: [id])
-  created_by_manager User           @relation("TaskCreator", fields: [created_by_manager_id], references: [id])
-  mentioned_users    User[]         @relation("TaskMentions")
-  assigned_roles     UserRole[]     @relation("TaskAssignedRoles")
+  calendar_entry     CalendarEntry?     @relation(fields: [calendar_entry_id], references: [id])
+  status             TaskStatus         @relation(fields: [status_id], references: [id])
+  task_type          TaskType?          @relation(fields: [task_type_id], references: [id])
+  task_types         TaskType[]         @relation("TaskToTaskTypes")
+  assigned_designer  User?              @relation("TaskDesigner", fields: [assigned_designer_id], references: [id])
+  created_by_manager User               @relation("TaskCreator", fields: [created_by_manager_id], references: [id])
+  mentioned_users    User[]             @relation("TaskMentions")
+  assigned_roles     UserRole[]         @relation("TaskAssignedRoles")
   comments           Comment[]
   uploads            Attachment[]
+  platform_specs     TaskPlatformSpec[]
 
   // Indexes
   @@index([assigned_designer_id])
@@ -353,6 +355,24 @@ model Task {
   @@index([created_by_manager_id])
   @@index([is_deleted])
   @@map("tasks")
+}
+
+model TaskPlatformSpec {
+  id          Int            @id @default(autoincrement())
+  task_id     Int
+  platform_id Int
+  post_specs  String?
+  created_at  DateTime       @default(now())
+  updated_at  DateTime       @updatedAt
+
+  // Relations
+  task        Task           @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  platform    SocialPlatform @relation(fields: [platform_id], references: [id], onDelete: Cascade)
+
+  @@unique([task_id, platform_id])
+  @@index([task_id])
+  @@index([platform_id])
+  @@map("task_platform_specs")
 }
 
 model Comment {

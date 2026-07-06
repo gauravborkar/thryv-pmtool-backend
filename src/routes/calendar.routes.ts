@@ -380,6 +380,7 @@ router.post('/', authenticate, authorize([1, 2]), async (req, res) => {
 
     const hasTaskTypeIds = taskTypeIds && Array.isArray(taskTypeIds) && taskTypeIds.length > 0;
     const primaryTaskTypeId = hasTaskTypeIds ? Number(taskTypeIds[0]) : (taskTypeId ? Number(taskTypeId) : null);
+    const hasPlatformSpecs = req.body.platformSpecs && Array.isArray(req.body.platformSpecs) && req.body.platformSpecs.length > 0;
 
     const task = await prisma.task.create({
       data: {
@@ -397,13 +398,20 @@ router.post('/', authenticate, authorize([1, 2]), async (req, res) => {
         assigned_designer_id: assignedDesignerId ? Number(assignedDesignerId) : null,
         created_by_manager_id: (req as any).user.id,
         drive_link: req.body.driveLink || null,
+        platform_specs: hasPlatformSpecs
+          ? {
+              create: req.body.platformSpecs.map((spec: any) => ({
+                platform_id: Number(spec.platformId),
+                post_specs: spec.postSpecs,
+              }))
+            }
+          : undefined,
       },
       include: {
         status: true,
         assigned_designer: { select: { id: true, name: true, email: true } },
       },
     });
-
     if (assignedDesignerId && Number(assignedDesignerId) !== (req as any).user.id) {
       await createNotification({
         userId: Number(assignedDesignerId),

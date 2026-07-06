@@ -12,6 +12,7 @@ const router = Router();
  */
 router.get('/', authenticate, taskController.getTasks);
 router.get('/types', authenticate, taskController.getTaskTypes);
+router.get('/platforms', authenticate, taskController.getSocialPlatforms);
 router.get('/:id', authenticate, taskController.getTaskById);
 
 /**
