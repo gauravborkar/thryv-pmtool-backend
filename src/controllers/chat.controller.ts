@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
 import { getIO } from '../services/socket.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { storage } from '../lib/storage';
-
-const prisma = new PrismaClient();
 
 export async function getChannels(req: AuthRequest, res: Response) {
   try {
