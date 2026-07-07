@@ -326,3 +326,57 @@ export const deleteRole = async (req: Request, res: Response, next: NextFunction
     res.status(500).json({ message: error.message || 'Internal server error' });
   }
 };
+
+/**
+ * @desc Get user's AI API key
+ * @route GET /settings/ai-key
+ * @access Private
+ */
+export const getAiKey = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as any).user.id;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { ai_api_key: true, ai_tokens_used: true, ai_token_limit: true }
+    });
+
+    res.status(200).json({
+      message: 'AI API key retrieved successfully',
+      data: { 
+        key: user?.ai_api_key || '',
+        tokensUsed: user?.ai_tokens_used || 0,
+        tokenLimit: user?.ai_token_limit || 1000000
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Internal server error' });
+  }
+};
+
+/**
+ * @desc Update user's AI API key
+ * @route PUT /settings/ai-key
+ * @access Private
+ */
+export const updateAiKey = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as any).user.id;
+    const { key } = req.body;
+
+    if (key === undefined) {
+      return res.status(400).json({ message: 'key is required' });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { ai_api_key: String(key).trim() || null }
+    });
+
+    res.status(200).json({
+      message: 'AI API key updated successfully',
+      data: { key: updatedUser.ai_api_key || '' }
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Internal server error' });
+  }
+};
