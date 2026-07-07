@@ -362,6 +362,7 @@ router.post('/', authenticate, authorize([1, 2]), async (req, res) => {
       taskTypeId,
       taskTypeIds,
       startDate,
+      designerDueDate,
     } = req.body;
 
     if (!clientId || !date || !title) {
@@ -369,7 +370,7 @@ router.post('/', authenticate, authorize([1, 2]), async (req, res) => {
     }
 
     const publishDate = parseISO(String(date));
-    const designerDueDate = addDays(publishDate, -2);
+    const finalDesignerDueDate = designerDueDate ? parseISO(String(designerDueDate)) : publishDate;
 
     const statusRow = await prisma.taskStatus.upsert({
       where: { name: String(status).toUpperCase() },
@@ -402,7 +403,7 @@ router.post('/', authenticate, authorize([1, 2]), async (req, res) => {
           : (taskTypeId ? { connect: [{ id: Number(taskTypeId) }] } : undefined),
         start_date: startDate ? new Date(String(startDate)) : null,
         publish_date: publishDate,
-        designer_due_date: designerDueDate,
+        designer_due_date: finalDesignerDueDate,
         assigned_designer_id: assignedDesignerId ? Number(assignedDesignerId) : null,
         created_by_manager_id: (req as any).user.id,
         drive_link: req.body.driveLink || null,
@@ -455,7 +456,7 @@ router.patch('/:id', authenticate, authorize([1, 2]), async (req, res) => {
       return res.status(400).json({ message: 'Invalid calendar entry ID' });
     }
 
-    const { date, title, description } = req.body;
+    const { date, title, description, designerDueDate } = req.body;
 
     const existing = await prisma.calendarEntry.findUnique({
       where: { id },
@@ -479,12 +480,14 @@ router.patch('/:id', authenticate, authorize([1, 2]), async (req, res) => {
     });
 
     if (existing.task) {
-      const designerDueDate = addDays(updatedDate, -2);
+      const finalDesignerDueDate = designerDueDate
+        ? parseISO(String(designerDueDate))
+        : (date ? updatedDate : undefined);
       await prisma.task.update({
         where: { id: existing.task.id },
         data: {
           publish_date: updatedDate,
-          designer_due_date: designerDueDate,
+          designer_due_date: finalDesignerDueDate,
           title: title ? String(title) : undefined,
         },
       });

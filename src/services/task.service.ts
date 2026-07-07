@@ -36,6 +36,7 @@ export type CreateTaskPayload = {
   postSpecs?: string;
   platformSpecs?: { platformId: number; postSpecs: string }[];
   publishDate: string;
+  designerDueDate?: string;
   priority?: number;
   calendarEntryId?: number;
   clientId?: number;
@@ -54,6 +55,7 @@ export type UpdateTaskPayload = {
   postSpecs?: string;
   platformSpecs?: { platformId: number; postSpecs: string }[];
   publishDate?: string;
+  designerDueDate?: string;
   priority?: number;
   taskTypeId?: number;
   taskTypeIds?: number[];
@@ -303,7 +305,9 @@ export async function createTask(payload: CreateTaskPayload, managerId: number) 
   const statusName = (payload.status ?? 'NOT_STARTED') as WorkflowStatus;
   const status = await getOrCreateStatus(statusName);
   const publishDate = new Date(payload.publishDate);
-  const designerDueDate = addDays(publishDate, -2);
+  const designerDueDate = payload.designerDueDate
+    ? new Date(payload.designerDueDate)
+    : publishDate;
   const startDate = payload.startDate ? new Date(payload.startDate) : null;
 
   const hasTaskTypeIds = payload.taskTypeIds && payload.taskTypeIds.length > 0;
@@ -379,7 +383,9 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, rol
   const publishDate = payload.publishDate
     ? new Date(payload.publishDate)
     : existing.publish_date;
-  const designerDueDate = addDays(publishDate, -2);
+  const designerDueDate = payload.designerDueDate
+    ? new Date(payload.designerDueDate)
+    : (payload.publishDate ? publishDate : existing.designer_due_date);
   const startDate = payload.startDate !== undefined
     ? (payload.startDate ? new Date(payload.startDate) : null)
     : existing.start_date;
@@ -522,8 +528,6 @@ export async function assignTask(taskId: number, designerId: number, roles: stri
     where: { id: taskId },
     data: {
       assigned_designer_id: designerId,
-      // Recalculate designer due date based on existing publish date
-      designer_due_date: addDays(existing.publish_date, -2),
     },
     include: includeTaskRelations(),
   });
