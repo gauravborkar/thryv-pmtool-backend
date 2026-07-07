@@ -113,8 +113,8 @@ router.get('/me', authenticate, async (req: any, res) => {
   }
 });
 
-// GET /users/designers (Admin/Manager)
-router.get('/designers', authenticate, authorize([1, 2]), async (_req: any, res) => {
+// GET /users/designers (All authenticated users)
+router.get('/designers', authenticate, async (_req: any, res) => {
   try {
     const designers = await prisma.user.findMany({
       where: {

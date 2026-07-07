@@ -6,7 +6,7 @@ import * as clientAddOnController from '../controllers/client-addon.controller';
 const router = Router();
 
 // Retrieve all clients (role-based dynamic section access)
-router.get('/', authenticate, authorizeSection('Clients'), clientController.getClients);
+router.get('/', authenticate, clientController.getClients);
 
 // Retrieve a single client by ID
 router.get('/:id', authenticate, authorizeSection('Clients'), clientController.getClientById);
