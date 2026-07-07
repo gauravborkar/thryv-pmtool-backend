@@ -471,6 +471,12 @@ export async function updateTaskStatus(
     throw new Error('Forbidden: You can only update your assigned tasks');
   }
 
+  if (['APPROVED', 'SCHEDULED'].includes(statusName)) {
+    if (!isAdmin && !isManager) {
+      throw new Error('Forbidden: Only managers and admins can approve or schedule tasks');
+    }
+  }
+
   const status = await getOrCreateStatus(statusName);
   const task = await prisma.task.update({
     where: { id: taskId },
