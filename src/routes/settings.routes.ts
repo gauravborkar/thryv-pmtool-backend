@@ -1,8 +1,14 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware';
-import { getRetentionPolicy, updateRetentionPolicy, getSidebarAccess, updateSidebarAccess, getRoles, createRole, deleteRole } from '../controllers/settings.controller';
+import { getRetentionPolicy, updateRetentionPolicy, getSidebarAccess, updateSidebarAccess, getRoles, createRole, deleteRole, getAiKey, updateAiKey } from '../controllers/settings.controller';
 
 const router = Router();
+
+// GET /settings/ai-key (Authenticated users)
+router.get('/ai-key', authenticate, getAiKey);
+
+// PUT /settings/ai-key (Authenticated users)
+router.put('/ai-key', authenticate, updateAiKey);
 
 // GET /settings/retention (Admins and Managers)
 router.get('/retention', authenticate, authorize([1, 2]), getRetentionPolicy);

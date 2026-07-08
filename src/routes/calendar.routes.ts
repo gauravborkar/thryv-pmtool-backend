@@ -143,8 +143,8 @@ router.post('/generate', authenticate, async (req, res) => {
       strategyContext = `
       --- AI Strategy Planner Constraints ---
       Please strictly follow these strategy constraints provided by the user:
-      - Goal: ${strategy.goal}
-      - Campaign Focus: ${strategy.campaignFocus}
+      - Goal: ${Array.isArray(strategy.goal) ? strategy.goal.join(', ') : strategy.goal}
+      - Campaign Focus: ${Array.isArray(strategy.campaignFocus) ? strategy.campaignFocus.join(', ') : strategy.campaignFocus}
       - Platforms: ${strategy.platforms?.join(', ')}
       - Target Audience: ${strategy.targetAudience?.join(', ')}
       - Content Mix Requirements: ${mixDataFormatted}
@@ -184,7 +184,7 @@ router.post('/generate', authenticate, async (req, res) => {
     
     Ensure the output is valid JSON in the exact format: { "entries": [{ "date": "YYYY-MM-DD", "title": "Post Title (Format)", "description": "Caption text goes here", "transcript": "Transcript goes here", "hashtags": "#tag1 #tag2", "reference_links": "url1", "is_holiday": false }] }`;
 
-    const generatedJson = await generateCalendarData(prompt, (model as AIModelType) || 'auto');
+    const generatedJson = await generateCalendarData(prompt, (model as AIModelType) || 'auto', (req as any).user.id);
     
     // Parse the JSON string
     let parsedData;
