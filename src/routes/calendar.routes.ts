@@ -179,10 +179,15 @@ router.post('/generate', authenticate, async (req, res) => {
     2. Exact Dates/Counts: Distribute the requested number of posts evenly throughout the TARGET MONTH unless a specific Date is provided.
     3. CONTENT PILLARS & CREATIVITY: Strongly align every post with the provided "Content Pillars". You MUST generate a highly detailed and creative 'description' for EVERY post. Do NOT leave it empty.
     4. INSTAGRAM PORTAL & REFERENCE LINKS: Actively analyze the provided 'Client Instagram Portal' to avoid duplicating existing themes. Use the 'Reference / Inspirational Links' to gauge trending formats, hashtags, and niche standards.
-    5. DEDICATED FIELDS: For video formats (e.g. Reels), you MUST generate a 'transcript', 'hashtags', and 'reference_links' (inspiration links) in their dedicated JSON fields.
+    5. DEDICATED FIELDS: For video formats (e.g. Reels), you MUST generate a 'transcript', 'hashtags', and 'reference_links' (inspiration links) in their dedicated JSON fields. To avoid broken/fake links, the 'reference_links' MUST be actual SEARCH URLs based on the post topic. Use exactly 3 to 5 of these formats, separated by commas:
+       - Pinterest: https://www.pinterest.com/search/pins/?q=TOPIC
+       - YouTube Shorts: https://www.youtube.com/results?search_query=TOPIC+shorts
+       - Instagram: https://www.instagram.com/explore/tags/TOPIC/
+       - LinkedIn: https://www.linkedin.com/search/results/content/?keywords=TOPIC
+       - Reddit: https://www.reddit.com/search/?q=TOPIC
     6. Do NOT invent extra posts beyond the requested count (plus holidays).
     
-    Ensure the output is valid JSON in the exact format: { "entries": [{ "date": "YYYY-MM-DD", "title": "Post Title (Format)", "description": "Caption text goes here", "transcript": "Transcript goes here", "hashtags": "#tag1 #tag2", "reference_links": "url1", "is_holiday": false }] }`;
+    Ensure the output is valid JSON in the exact format: { "entries": [{ "date": "YYYY-MM-DD", "title": "Post Title (Format)", "description": "Caption text goes here", "transcript": "Transcript goes here", "hashtags": "#tag1 #tag2", "reference_links": "url1, url2, url3", "is_holiday": false }] }`;
 
     const generatedJson = await generateCalendarData(prompt, (model as AIModelType) || 'auto', (req as any).user.id);
     

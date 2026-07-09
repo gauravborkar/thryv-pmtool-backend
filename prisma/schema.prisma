@@ -118,9 +118,8 @@ model User {
   reset_password_expires DateTime?
   current_session_token  String?
   custom_permissions     Json?
-  ai_api_key             String?
-  ai_tokens_used         Int       @default(0)
-  ai_token_limit         Int       @default(1000000)
+
+
   created_at             DateTime  @default(now())
   updated_at             DateTime  @updatedAt
 
