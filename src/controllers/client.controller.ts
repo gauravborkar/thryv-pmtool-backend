@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import * as clientService from '../services/client.service';
 import { logAction } from '../services/audit.service';
+import { sendQuotationEmail as sendEmailService } from '../services/email.service';
 
 const getErrorStatus = (error: any) => {
   const message = error.message || '';
@@ -14,7 +15,10 @@ export const getClients = async (req: AuthRequest, res: Response, next: NextFunc
   try {
     const user = req.user!;
     const activeOnly = req.query.activeOnly !== 'false';
-    const clients = await clientService.getClients(user, activeOnly);
+    const isOnboard = req.query.isOnboard === 'true' ? true
+                    : req.query.isOnboard === 'false' ? false
+                    : undefined;
+    const clients = await clientService.getClients(user, activeOnly, isOnboard);
 
     res.status(200).json({
       message: 'Clients retrieved successfully',
@@ -45,7 +49,7 @@ export const getClientById = async (req: AuthRequest, res: Response, next: NextF
 };
 
 export const createClient = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  const { name, active_month, manager_id, brand_details, timezone, package_ids, google_drive_link } = req.body;
+  const { name, active_month, manager_id, brand_details, timezone, package_ids, google_drive_link, is_onboard } = req.body;
   const user = req.user!;
 
   try {
@@ -54,7 +58,7 @@ export const createClient = async (req: AuthRequest, res: Response, next: NextFu
     }
 
     const client = await clientService.createClient(
-      { name, active_month, manager_id, brand_details, timezone, package_ids, google_drive_link },
+      { name, active_month, manager_id, brand_details, timezone, package_ids, google_drive_link, is_onboard },
       user
     );
 
@@ -164,3 +168,40 @@ export const archiveClient = async (req: AuthRequest, res: Response, next: NextF
     res.status(getErrorStatus(error)).json({ message: error.message });
   }
 };
+
+export const sendQuotationEmail = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  const { to, subject, body, pdfBase64, clientName } = req.body;
+  const user = req.user!;
+
+  try {
+    if (!to || !subject || !body || !pdfBase64) {
+      return res.status(400).json({ message: 'Recipient (to), subject, body, and pdfBase64 are required' });
+    }
+
+    await sendEmailService(to, subject, body, pdfBase64, clientName || 'Client');
+
+    // Log the successful action
+    await logAction({
+      userId: user.id,
+      action: 'CLIENT_SEND_QUOTATION_SUCCESS',
+      entity: 'Client',
+      details: { to, subject, clientName },
+      ipAddress: req.ip,
+    });
+
+    res.status(200).json({
+      message: 'Quotation email sent successfully',
+    });
+  } catch (error: any) {
+    // Log failed email send
+    await logAction({
+      userId: user.id,
+      action: 'CLIENT_SEND_QUOTATION_FAILURE',
+      details: { to, subject, error: error.message },
+      ipAddress: req.ip,
+    });
+
+    res.status(500).json({ message: error.message || 'Failed to send email' });
+  }
+};
+

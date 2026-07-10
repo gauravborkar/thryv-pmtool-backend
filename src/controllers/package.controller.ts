@@ -53,14 +53,14 @@ export const createPackage = async (req: AuthRequest, res: Response, _next: Next
   const user = req.user!;
 
   try {
-    const { name, description, items } = req.body;
+    const { name, description, price, items } = req.body;
 
     if (!name || !items) {
       return res.status(400).json({ message: 'Name and items are required' });
     }
 
     const pkg = await packageService.createContentPackage(
-      { name, description, items },
+      { name, description, price, items },
       user
     );
 

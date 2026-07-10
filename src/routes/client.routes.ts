@@ -14,6 +14,9 @@ router.get('/:id', authenticate, authorizeSection('Clients'), clientController.g
 // Create a new client
 router.post('/', authenticate, authorize([1, 2]), clientController.createClient);
 
+// Send quotation email
+router.post('/send-quotation', authenticate, clientController.sendQuotationEmail);
+
 // Update a client profile (ID in URL)
 router.put('/:id', authenticate, authorize([1, 2]), clientController.updateClient);
 
