@@ -10,6 +10,7 @@ export interface CreateClientInput {
   timezone?: string;
   package_ids?: string[];
   google_drive_link?: string;
+  is_onboard?: boolean;
 }
 
 export interface UpdateClientInput {
@@ -19,6 +20,7 @@ export interface UpdateClientInput {
   brand_details?: any;
   timezone?: string;
   is_active?: boolean;
+  is_onboard?: boolean;
   package_ids?: string[];
   google_drive_link?: string;
 }
@@ -44,8 +46,8 @@ function enforceOwnership(client: { manager_id: number }, user: { id: number; ro
  * - ADMIN: Can see all clients.
  * - MANAGER: Can only see clients they manage.
  */
-export const getClients = async (user: { id: number; roles: string[]; roleIds?: number[] }, activeOnly = true) => {
-  const cacheKey = `clients_user_${user.id}_active_${activeOnly}`;
+export const getClients = async (user: { id: number; roles: string[]; roleIds?: number[] }, activeOnly = true, isOnboard?: boolean) => {
+  const cacheKey = `clients_user_${user.id}_active_${activeOnly}_onboard_${isOnboard ?? 'all'}`;
   const cached = localCache.get<any[]>(cacheKey);
   if (cached) return cached;
 
@@ -57,6 +59,10 @@ export const getClients = async (user: { id: number; roles: string[]; roleIds?: 
 
   if (activeOnly) {
     whereClause.is_active = true;
+  }
+
+  if (isOnboard !== undefined) {
+    whereClause.is_onboard = isOnboard;
   }
 
   const result = await prisma.client.findMany({
@@ -164,6 +170,7 @@ export const createClient = async (data: CreateClientInput, user: { id: number; 
       brand_details: data.brand_details || undefined,
       timezone: data.timezone || 'UTC',
       is_active: true,
+      is_onboard: data.is_onboard !== undefined ? data.is_onboard : true,
       google_drive_link: data.google_drive_link || null,
     },
     include: {
@@ -242,6 +249,7 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
   const updateData: any = {};
   if (data.name !== undefined)          updateData.name = data.name;
   if (data.is_active !== undefined)     updateData.is_active = data.is_active;
+  if (data.is_onboard !== undefined)    updateData.is_onboard = data.is_onboard;
   if (data.brand_details !== undefined) updateData.brand_details = data.brand_details;
   if (data.timezone !== undefined)      updateData.timezone = data.timezone;
   if (data.google_drive_link !== undefined) updateData.google_drive_link = data.google_drive_link;

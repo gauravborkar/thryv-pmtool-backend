@@ -180,3 +180,53 @@ export const sendPasswordResetEmail = async (email: string, token: string) => {
     console.log('🔍 Preview URL:', preview);
   }
 };
+
+/**
+ * Sends a client quotation email with a PDF attachment.
+ */
+export const sendQuotationEmail = async (
+  to: string,
+  subject: string,
+  body: string,
+  pdfBase64: string,
+  clientName: string
+) => {
+  const transporter = await getTransporter();
+  if (!transporter) {
+    throw new Error(
+      'Email is not configured. Set EMAIL_HOST, EMAIL_USER, and EMAIL_PASS on the server.'
+    );
+  }
+
+  // Remove the base64 prefix if present (e.g. data:application/pdf;base64,)
+  const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
+  const safeClientName = clientName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const filename = `Quotation_${safeClientName || 'Client'}.pdf`;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM || 'no-reply@thryv.com',
+    to,
+    subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        ${body.replace(/\n/g, '<br/>')}
+      </div>
+    `,
+    text: body,
+    attachments: [
+      {
+        filename,
+        content: Buffer.from(base64Data, 'base64'),
+        contentType: 'application/pdf',
+      },
+    ],
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  console.log('📧 Quotation email sent (messageId=%s) to %s', info.messageId, to);
+  const preview = nodemailer.getTestMessageUrl(info);
+  if (preview) {
+    console.log('🔍 Preview URL:', preview);
+  }
+};
+

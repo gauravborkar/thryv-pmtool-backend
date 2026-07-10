@@ -17,6 +17,7 @@ export interface CreateContentPackageInput {
   name: string;
   clientId?: number;
   description?: string;
+  price?: number;
   items: PackageLineItemInput[];
 }
 
@@ -24,6 +25,7 @@ export interface UpdateContentPackageInput {
   name?: string;
   clientId?: number;
   description?: string;
+  price?: number;
   items?: PackageLineItemInput[];
 }
 
@@ -243,6 +245,7 @@ export function formatContentPackage(pkg: PackageWithRelations) {
     client: pkg.client ? { name: pkg.client.name } : null,
     name: pkg.name,
     description: pkg.description ?? undefined,
+    price: pkg.price !== null ? Number(pkg.price) : undefined,
     currentVersion: pkg.current_version,
     items: pkg.line_items.map((item) => ({
       id: item.id,
@@ -591,6 +594,7 @@ export const createContentPackage = async (
       name,
       client_id: data.clientId,
       description: normalizeNotes(data.description) || null,
+      price: data.price !== undefined ? data.price : null,
       created_by_id: user.id,
       current_version: 1,
       line_items: {
@@ -691,9 +695,11 @@ export const updateContentPackage = async (
       ? normalizeNotes(data.description) || null
       : existing.description;
 
+  const nextPrice = data.price !== undefined ? data.price : existing.price !== null ? Number(existing.price) : null;
   const metadataChanged =
     nextName !== existing.name ||
-    (nextDescription ?? '') !== (existing.description ?? '');
+    (nextDescription ?? '') !== (existing.description ?? '') ||
+    nextPrice !== (existing.price !== null ? Number(existing.price) : null);
 
   if (!data.items) {
     if (!metadataChanged) {
@@ -710,6 +716,7 @@ export const updateContentPackage = async (
           name: nextName,
           client_id: data.clientId !== undefined ? data.clientId : existing.client_id,
           description: nextDescription,
+          price: nextPrice,
           current_version: nextVersion,
         },
       });
@@ -804,6 +811,7 @@ export const updateContentPackage = async (
         name: nextName,
         client_id: data.clientId !== undefined ? data.clientId : existing.client_id,
         description: nextDescription,
+        price: nextPrice,
         current_version: nextVersion,
       },
     });

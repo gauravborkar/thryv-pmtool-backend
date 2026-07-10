@@ -153,6 +153,7 @@ model Client {
   active_month      DateTime
   manager_id        Int
   is_active         Boolean  @default(true)
+  is_onboard        Boolean  @default(true)
   timezone          String   @default("UTC")
   google_drive_link String?
   created_at        DateTime @default(now())
@@ -173,6 +174,7 @@ model Client {
   @@index([manager_id])
   @@index([active_month])
   @@index([is_active])
+  @@index([is_onboard])
   @@map("clients")
 }
 
@@ -199,6 +201,7 @@ model ContentPackage {
   client_id       Int?
   name            String
   description     String?
+  price           Decimal? @db.Decimal(10, 2)
   created_by_id   Int
   current_version Int      @default(1)
   is_deleted      Boolean  @default(false)
