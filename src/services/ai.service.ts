@@ -160,10 +160,6 @@ export async function buildContext(client_id: number): Promise<string> {
  */
 export async function generateCalendarData(prompt: string, requestedModel: AIModelType | 'auto' = 'auto', userId?: number): Promise<string> {
   let customApiKey = null;
-  if (userId) {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { ai_api_key: true } });
-    customApiKey = user?.ai_api_key || null;
-  }
 
   let generatedResult: { text: string, tokensUsed: number } | null = null;
 
@@ -199,16 +195,6 @@ export async function generateCalendarData(prompt: string, requestedModel: AIMod
     }
   }
 
-  if (userId && generatedResult && generatedResult.tokensUsed > 0) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        ai_tokens_used: {
-          increment: generatedResult.tokensUsed
-        }
-      }
-    });
-  }
 
   return generatedResult?.text || '';
 }
