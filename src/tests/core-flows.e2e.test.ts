@@ -2,15 +2,24 @@ import request from 'supertest';
 import app from '../app';
 import { prismaMock } from './setup';
 
+// Mock email service to avoid real network SMTP calls
+jest.mock('../services/email.service', () => ({
+  sendInvitationEmail: jest.fn().mockResolvedValue(true),
+  sendPasswordResetEmail: jest.fn().mockResolvedValue(true),
+}));
+
 // Mock auth middleware to bypass token verification for E2E flow tests
 jest.mock('../middleware/auth.middleware', () => {
   return {
     authenticate: (req: any, res: any, next: any) => {
       // Mock an admin user by default
-      req.user = { id: 1, email: 'admin@thryv.com', role: 'ADMIN' };
+      req.user = { id: 1, email: 'admin@thryv.com', role: 'ADMIN', roles: ['ADMIN'] };
       next();
     },
     authorize: (roles: string[]) => (req: any, res: any, next: any) => {
+      next();
+    },
+    authorizeSection: (sectionName: string) => (req: any, res: any, next: any) => {
       next();
     }
   };
@@ -169,7 +178,7 @@ describe('Core Flows E2E Tests', () => {
         uploads: []
       };
 
-      prismaMock.task.create.mockResolvedValue(mockTask);
+      prismaMock.task.create.mockResolvedValue(mockTask as any);
 
       const res = await request(app)
         .post('/tasks')

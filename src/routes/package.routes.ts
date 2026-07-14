@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate, authorize, authorizeSection } from '../middleware/auth.middleware';
 import * as packageController from '../controllers/package.controller';
 
 const router = Router();
@@ -7,32 +7,32 @@ const router = Router();
 router.get(
   '/lookups',
   authenticate,
-  authorize(['ADMIN', 'MANAGER']),
+  authorizeSection('Packages'),
   packageController.getPackageLookups
 );
 
-router.get('/', authenticate, authorize(['ADMIN', 'MANAGER']), packageController.getPackages);
+router.get('/', authenticate, authorizeSection('Packages'), packageController.getPackages);
 
 router.get(
   '/:id/history/:versionNumber',
   authenticate,
-  authorize(['ADMIN', 'MANAGER']),
+  authorizeSection('Packages'),
   packageController.getPackageVersion
 );
 
 router.get(
   '/:id/history',
   authenticate,
-  authorize(['ADMIN', 'MANAGER']),
+  authorizeSection('Packages'),
   packageController.getPackageHistory
 );
 
-router.get('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), packageController.getPackageById);
+router.get('/:id', authenticate, authorizeSection('Packages'), packageController.getPackageById);
 
-router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), packageController.createPackage);
+router.post('/', authenticate, authorize([1, 2]), packageController.createPackage);
 
-router.put('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), packageController.updatePackage);
+router.put('/:id', authenticate, authorize([1, 2]), packageController.updatePackage);
 
-router.delete('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), packageController.deletePackage);
+router.delete('/:id', authenticate, authorize([1, 2]), packageController.deletePackage);
 
 export default router;

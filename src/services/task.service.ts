@@ -17,7 +17,8 @@ const STATUS_FLOW = [
 type WorkflowStatus = (typeof STATUS_FLOW)[number];
 
 export type TaskFilters = {
-  role: string;
+  roles: string[];
+  roleIds?: number[];
   userId: number;
   sortBy?: 'dueDate' | 'status' | 'client' | 'designer' | 'designerDue';
   sortOrder?: 'asc' | 'desc';
@@ -33,20 +34,34 @@ export type CreateTaskPayload = {
   title: string;
   brief?: string;
   postSpecs?: string;
+  platformSpecs?: { platformId: number; postSpecs: string }[];
   publishDate: string;
+  designerDueDate?: string;
   priority?: number;
   calendarEntryId?: number;
   clientId?: number;
   assignedDesignerId?: number;
+  assignedRoleIds?: number[];
   status?: WorkflowStatus;
+  taskTypeId?: number;
+  taskTypeIds?: number[];
+  startDate?: string;
+  driveLink?: string;
 };
 
 export type UpdateTaskPayload = {
   title?: string;
   brief?: string;
   postSpecs?: string;
+  platformSpecs?: { platformId: number; postSpecs: string }[];
   publishDate?: string;
+  designerDueDate?: string;
   priority?: number;
+  taskTypeId?: number;
+  taskTypeIds?: number[];
+  assignedRoleIds?: number[];
+  startDate?: string;
+  driveLink?: string;
 };
 
 export type CommentPayload = {
@@ -77,10 +92,11 @@ function getStatusRank(name: string): number {
 function includeTaskRelations() {
   return {
     status: true,
+    task_type: true,
+    task_types: true,
     calendar_entry: { include: { client: true } },
     assigned_designer: { select: { id: true, name: true, email: true } },
     created_by_manager: { select: { id: true, name: true, email: true } },
-    mentioned_users: { select: { id: true, name: true } },
     comments: {
       include: { author: { select: { id: true, name: true, email: true } } },
       orderBy: { created_at: 'asc' as const },
@@ -88,6 +104,11 @@ function includeTaskRelations() {
     uploads: {
       include: {
         user: { select: { id: true, name: true, email: true } },
+      },
+    },
+    platform_specs: {
+      include: {
+        platform: true,
       },
     },
   };
@@ -103,12 +124,33 @@ function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includ
     id: task.id,
     title: task.title,
     brief,
-    postSpecs,
+    postSpecs: task.platform_specs && task.platform_specs.length > 0
+      ? task.platform_specs.map(ps => `${ps.platform.name}: ${ps.post_specs || ''}`).join('\n')
+      : postSpecs,
+    platformSpecs: task.platform_specs
+      ? task.platform_specs.map(ps => ({
+          platformId: ps.platform_id,
+          platformName: ps.platform.name,
+          postSpecs: ps.post_specs || '',
+        }))
+      : [],
     status: task.status.name,
     statusId: task.status_id,
     priority: task.priority,
     publishDate: task.publish_date,
     designerDueDate: task.designer_due_date,
+    startDate: task.start_date,
+    taskTypeId: task.task_type_id,
+    taskType: task.task_type
+      ? {
+          id: task.task_type.id,
+          name: task.task_type.name,
+        }
+      : null,
+    taskTypeIds: task.task_types ? task.task_types.map(t => t.id) : [],
+    taskTypes: task.task_types ? task.task_types.map(t => ({ id: t.id, name: t.name })) : [],
+    assignedRoleIds: [],
+    assignedRoles: [],
     calendarEntryId: task.calendar_entry_id,
     client: task.calendar_entry?.client
       ? {
@@ -135,30 +177,37 @@ function mapTask(task: Prisma.TaskGetPayload<{ include: ReturnType<typeof includ
     })),
     createdAt: task.created_at,
     updatedAt: task.updated_at,
+    driveLink: task.drive_link,
   };
 }
 
-function canViewTask(role: string, userId: number, task: Task & { mentioned_users?: { id: number }[] }): boolean {
-  if (role === 'ADMIN' || role === 'MANAGER') return true;
-  if (role === 'DESIGNER') {
-    if (task.assigned_designer_id === userId) return true;
-    if (task.mentioned_users?.some(u => u.id === userId)) return true;
-  }
+/** Worker roles that can be assigned to tasks */
+function getUserRoleFlags(roles: string[], roleIds?: number[]) {
+  const isAdmin = (roleIds && roleIds.includes(1)) || roles.includes('ADMIN');
+  const isManager = (roleIds && roleIds.includes(2)) || roles.includes('MANAGER');
+  const isWorker = (roleIds && roleIds.includes(3)) || roles.some((r) => ['DESIGNER', 'VIDEOGRAPHER', 'EDITOR'].includes(r));
+  return { isAdmin, isManager, isWorker };
+}
+
+function canViewTask(roles: string[], userId: number, task: Task, roleIds?: number[]): boolean {
+  const { isAdmin, isManager, isWorker } = getUserRoleFlags(roles, roleIds);
+  if (isAdmin) return true;
+  if (isManager) return task.created_by_manager_id === userId;
+  if (isWorker) return task.assigned_designer_id === userId;
   return false;
 }
 
 export async function listTasks(filters: TaskFilters) {
-  const where: Prisma.TaskWhereInput = {};
+  const where: Prisma.TaskWhereInput = {
+    is_deleted: false,
+  };
 
-  if (filters.role === 'DESIGNER') {
-    where.AND = [
-      {
-        OR: [
-          { assigned_designer_id: filters.userId },
-          { mentioned_users: { some: { id: filters.userId } } }
-        ]
-      }
-    ];
+  const { isAdmin, isManager, isWorker } = getUserRoleFlags(filters.roles, filters.roleIds);
+
+  if (isWorker && !isManager && !isAdmin) {
+    where.assigned_designer_id = filters.userId;
+  } else if (isManager && !isAdmin) {
+    where.created_by_manager_id = filters.userId;
   }
 
   if (filters.status) {
@@ -235,17 +284,17 @@ export async function listTasks(filters: TaskFilters) {
   }
 }
 
-export async function getTaskById(taskId: number, role: string, userId: number) {
+export async function getTaskById(taskId: number, roles: string[], userId: number, roleIds?: number[]) {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: includeTaskRelations(),
   });
 
-  if (!task) {
+  if (!task || task.is_deleted) {
     throw new Error('Task not found');
   }
 
-  if (!canViewTask(role, userId, task)) {
+  if (!canViewTask(roles, userId, task, roleIds)) {
     throw new Error('Forbidden: You do not have permission to access this task');
   }
 
@@ -256,28 +305,49 @@ export async function createTask(payload: CreateTaskPayload, managerId: number) 
   const statusName = (payload.status ?? 'NOT_STARTED') as WorkflowStatus;
   const status = await getOrCreateStatus(statusName);
   const publishDate = new Date(payload.publishDate);
-  const designerDueDate = addDays(publishDate, -2);
+  const designerDueDate = payload.designerDueDate
+    ? new Date(payload.designerDueDate)
+    : publishDate;
+  const startDate = payload.startDate ? new Date(payload.startDate) : null;
+
+  const hasTaskTypeIds = payload.taskTypeIds && payload.taskTypeIds.length > 0;
+  const primaryTaskTypeId = hasTaskTypeIds ? Number(payload.taskTypeIds![0]) : (payload.taskTypeId ? Number(payload.taskTypeId) : null);
 
   const task = await prisma.task.create({
     data: {
       calendar_entry_id: payload.calendarEntryId,
       title: payload.title,
       status_id: status.id,
+      task_type_id: primaryTaskTypeId,
+      task_types: hasTaskTypeIds 
+        ? { connect: payload.taskTypeIds!.map(id => ({ id: Number(id) })) }
+        : (payload.taskTypeId ? { connect: [{ id: Number(payload.taskTypeId) }] } : undefined),
       priority: payload.priority ?? 2,
+      start_date: startDate,
       publish_date: publishDate,
       designer_due_date: designerDueDate,
       assigned_designer_id: payload.assignedDesignerId,
       created_by_manager_id: managerId,
+      drive_link: payload.driveLink,
+      platform_specs: payload.platformSpecs && payload.platformSpecs.length > 0
+        ? {
+            create: payload.platformSpecs.map(spec => ({
+              platform_id: Number(spec.platformId),
+              post_specs: spec.postSpecs,
+            }))
+          }
+        : undefined,
     },
     include: includeTaskRelations(),
   });
 
-  if (payload.brief || payload.postSpecs) {
+  const combinedSpecs = payload.postSpecs || (payload.platformSpecs ? payload.platformSpecs.map(s => s.postSpecs).filter(Boolean).join('\n') : '');
+  if (payload.brief || combinedSpecs) {
     if (payload.calendarEntryId) {
       await prisma.calendarEntry.update({
         where: { id: payload.calendarEntryId },
         data: {
-          description: `${payload.brief || ''}\n\n${payload.postSpecs || ''}`,
+          description: `${payload.brief || ''}\n\n${combinedSpecs}`,
         },
       });
     }
@@ -297,28 +367,67 @@ export async function createTask(payload: CreateTaskPayload, managerId: number) 
   return mapTask(task);
 }
 
-export async function updateTask(taskId: number, payload: UpdateTaskPayload, managerId: number) {
+export async function updateTask(taskId: number, payload: UpdateTaskPayload, roles: string[], userId: number, roleIds?: number[]) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
   if (!existing) throw new Error('Task not found');
+
+  const { isAdmin, isManager, isWorker } = getUserRoleFlags(roles, roleIds);
+
+  if (isManager && !isAdmin && existing.created_by_manager_id !== userId) {
+    throw new Error('Forbidden: You do not have permission to update this task');
+  }
+  if (isWorker && !isManager && !isAdmin && existing.assigned_designer_id !== userId) {
+    throw new Error('Forbidden: You do not have permission to update this task');
+  }
 
   const publishDate = payload.publishDate
     ? new Date(payload.publishDate)
     : existing.publish_date;
-  const designerDueDate = addDays(publishDate, -2);
+  const designerDueDate = payload.designerDueDate
+    ? new Date(payload.designerDueDate)
+    : (payload.publishDate ? publishDate : existing.designer_due_date);
+  const startDate = payload.startDate !== undefined
+    ? (payload.startDate ? new Date(payload.startDate) : null)
+    : existing.start_date;
+
+  const hasNewTaskTypeIds = payload.taskTypeIds !== undefined;
+  const newPrimaryTaskTypeId = hasNewTaskTypeIds 
+    ? (payload.taskTypeIds!.length > 0 ? Number(payload.taskTypeIds![0]) : null)
+    : (payload.taskTypeId !== undefined 
+        ? (payload.taskTypeId ? Number(payload.taskTypeId) : null) 
+        : existing.task_type_id);
+
+  const platformSpecsUpdate = payload.platformSpecs !== undefined
+    ? {
+        deleteMany: {},
+        create: payload.platformSpecs.map(spec => ({
+          platform_id: Number(spec.platformId),
+          post_specs: spec.postSpecs,
+        }))
+      }
+    : undefined;
 
   const task = await prisma.task.update({
     where: { id: taskId },
     data: {
       title: payload.title ?? existing.title,
+      task_type_id: newPrimaryTaskTypeId,
+      task_types: hasNewTaskTypeIds
+        ? { set: payload.taskTypeIds!.map(id => ({ id: Number(id) })) }
+        : (payload.taskTypeId !== undefined 
+            ? (payload.taskTypeId ? { set: [{ id: Number(payload.taskTypeId) }] } : { set: [] }) 
+            : undefined),
       priority: payload.priority ?? existing.priority,
+      start_date: startDate,
       publish_date: publishDate,
       designer_due_date: designerDueDate,
-      created_by_manager_id: managerId,
+      drive_link: payload.driveLink !== undefined ? payload.driveLink : existing.drive_link,
+      platform_specs: platformSpecsUpdate,
     },
     include: includeTaskRelations(),
   });
 
-  if (existing.calendar_entry_id && (payload.brief !== undefined || payload.postSpecs !== undefined || payload.title)) {
+  if (existing.calendar_entry_id && (payload.brief !== undefined || payload.postSpecs !== undefined || payload.platformSpecs !== undefined || payload.title)) {
     const calendarEntry = await prisma.calendarEntry.findUnique({
       where: { id: existing.calendar_entry_id },
     });
@@ -328,7 +437,10 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, man
     const existingSpecs = parts.slice(1).join('\n\n') || '';
 
     const newBrief = payload.brief !== undefined ? payload.brief : existingBrief;
-    const newSpecs = payload.postSpecs !== undefined ? payload.postSpecs : existingSpecs;
+    let newSpecs = payload.postSpecs !== undefined ? payload.postSpecs : existingSpecs;
+    if (payload.platformSpecs !== undefined) {
+      newSpecs = payload.platformSpecs.map(s => s.postSpecs).filter(Boolean).join('\n');
+    }
 
     await prisma.calendarEntry.update({
       where: { id: existing.calendar_entry_id },
@@ -346,14 +458,23 @@ export async function updateTask(taskId: number, payload: UpdateTaskPayload, man
 export async function updateTaskStatus(
   taskId: number,
   statusName: WorkflowStatus,
-  role: string,
-  userId: number
+  roles: string[],
+  userId: number,
+  roleIds?: number[]
 ) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
   if (!existing) throw new Error('Task not found');
 
-  if (role === 'DESIGNER' && existing.assigned_designer_id !== userId) {
+  const { isAdmin, isManager, isWorker } = getUserRoleFlags(roles, roleIds);
+
+  if (isWorker && !isManager && !isAdmin && existing.assigned_designer_id !== userId) {
     throw new Error('Forbidden: You can only update your assigned tasks');
+  }
+
+  if (['APPROVED', 'SCHEDULED'].includes(statusName)) {
+    if (!isAdmin && !isManager) {
+      throw new Error('Forbidden: Only managers and admins can approve or schedule tasks');
+    }
   }
 
   const status = await getOrCreateStatus(statusName);
@@ -390,25 +511,29 @@ export async function updateTaskStatus(
   return mapTask(task);
 }
 
-export async function assignTask(taskId: number, designerId: number, actionUserId?: number) {
+export async function assignTask(taskId: number, designerId: number, roles: string[], actionUserId?: number, roleIds?: number[]) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
   if (!existing) throw new Error('Task not found');
 
+  const { isAdmin, isManager } = getUserRoleFlags(roles, roleIds);
+
+  if (isManager && !isAdmin && existing.created_by_manager_id !== actionUserId) {
+    throw new Error('Forbidden: You do not have permission to assign this task');
+  }
+
   const designer = await prisma.user.findUnique({
     where: { id: designerId },
-    include: { role: true },
+    include: { roles: true },
   });
 
-  if (!designer || designer.role.name !== 'DESIGNER') {
-    throw new Error('Assigned user must be a designer');
+  if (!designer || !designer.roles.some((r) => r.id === 3 || ['DESIGNER', 'VIDEOGRAPHER', 'EDITOR'].includes(r.name))) {
+    throw new Error('Assigned user must be a designer, videographer, or editor');
   }
 
   const task = await prisma.task.update({
     where: { id: taskId },
     data: {
       assigned_designer_id: designerId,
-      // Recalculate designer due date based on existing publish date
-      designer_due_date: addDays(existing.publish_date, -2),
     },
     include: includeTaskRelations(),
   });
@@ -427,14 +552,11 @@ export async function assignTask(taskId: number, designerId: number, actionUserI
   return mapTask(task);
 }
 
-export async function addComment(taskId: number, userId: number, role: string, payload: CommentPayload) {
-  const task = await prisma.task.findUnique({ 
-    where: { id: taskId },
-    include: { mentioned_users: true }
-  });
+export async function addComment(taskId: number, userId: number, roles: string[], payload: CommentPayload, roleIds?: number[]) {
+  const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new Error('Task not found');
 
-  if (!canViewTask(role, userId, task)) {
+  if (!canViewTask(roles, userId, task, roleIds)) {
     throw new Error('Forbidden: You do not have permission to access this task');
   }
 
@@ -507,8 +629,9 @@ export async function addComment(taskId: number, userId: number, role: string, p
   };
 }
 
-function canManageComment(role: string, commentAuthorId: number, userId: number): boolean {
-  if (role === 'ADMIN' || role === 'MANAGER') return true;
+function canManageComment(roles: string[], commentAuthorId: number, userId: number, roleIds?: number[]): boolean {
+  const { isAdmin, isManager } = getUserRoleFlags(roles, roleIds);
+  if (isAdmin || isManager) return true;
   return commentAuthorId === userId;
 }
 
@@ -516,12 +639,13 @@ export async function updateComment(
   taskId: number,
   commentId: number,
   userId: number,
-  role: string,
-  payload: CommentPayload
+  roles: string[],
+  payload: CommentPayload,
+  roleIds?: number[]
 ) {
   const comment = await prisma.comment.findUnique({ where: { id: commentId } });
   if (!comment || comment.task_id !== taskId) throw new Error('Comment not found');
-  if (!canManageComment(role, comment.author_id, userId)) {
+  if (!canManageComment(roles, comment.author_id, userId, roleIds)) {
     throw new Error('Forbidden: You do not have permission to edit this comment');
   }
 
@@ -543,11 +667,12 @@ export async function deleteComment(
   taskId: number,
   commentId: number,
   userId: number,
-  role: string
+  roles: string[],
+  roleIds?: number[]
 ) {
   const comment = await prisma.comment.findUnique({ where: { id: commentId } });
   if (!comment || comment.task_id !== taskId) throw new Error('Comment not found');
-  if (!canManageComment(role, comment.author_id, userId)) {
+  if (!canManageComment(roles, comment.author_id, userId, roleIds)) {
     throw new Error('Forbidden: You do not have permission to delete this comment');
   }
 
@@ -555,29 +680,39 @@ export async function deleteComment(
   return { id: commentId };
 }
 
-export async function deleteTask(taskId: number) {
+export async function deleteTask(taskId: number, roles: string[], userId: number, roleIds?: number[]) {
   const existing = await prisma.task.findUnique({ where: { id: taskId } });
-  if (!existing) throw new Error('Task not found');
+  if (!existing || existing.is_deleted) throw new Error('Task not found');
 
-  await prisma.task.delete({ where: { id: taskId } });
+  const { isAdmin, isManager } = getUserRoleFlags(roles, roleIds);
+
+  if (isManager && !isAdmin && existing.created_by_manager_id !== userId) {
+    throw new Error('Forbidden: You do not have permission to delete this task');
+  }
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { is_deleted: true },
+  });
   return { id: taskId };
 }
 
 export async function addTaskAttachment(
   taskId: number,
   userId: number,
-  role: string,
+  roles: string[],
   payload: {
     fileName: string;
     fileUrl: string;
     fileType: string;
     fileSize: number;
-  }
+  },
+  roleIds?: number[]
 ) {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new Error('Task not found');
 
-  if (!canViewTask(role, userId, task)) {
+  if (!canViewTask(roles, userId, task, roleIds)) {
     throw new Error('Forbidden: You do not have permission to access this task');
   }
 
@@ -621,12 +756,13 @@ export async function deleteTaskAttachment(
   taskId: number,
   attachmentId: number,
   userId: number,
-  role: string
+  roles: string[],
+  roleIds?: number[]
 ) {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new Error('Task not found');
 
-  if (!canViewTask(role, userId, task)) {
+  if (!canViewTask(roles, userId, task, roleIds)) {
     throw new Error('Forbidden: You do not have permission to access this task');
   }
 
@@ -639,7 +775,8 @@ export async function deleteTaskAttachment(
 
   // Auth check: Admin/Manager or the owner who uploaded it
   const isOwner = attachment.uploaded_by === userId;
-  const isAdminOrManager = ['ADMIN', 'MANAGER'].includes(role);
+  const { isAdmin, isManager } = getUserRoleFlags(roles, roleIds);
+  const isAdminOrManager = isAdmin || isManager;
   if (!isOwner && !isAdminOrManager) {
     throw new Error('Forbidden: You do not have permission to delete this attachment');
   }
@@ -659,5 +796,17 @@ export async function deleteTaskAttachment(
 
   await prisma.attachment.delete({ where: { id: attachmentId } });
   return { id: attachmentId };
+}
+
+export async function getTaskTypes() {
+  return prisma.taskType.findMany({
+    orderBy: { name: 'asc' },
+  });
+}
+
+export async function getSocialPlatforms() {
+  return prisma.socialPlatform.findMany({
+    orderBy: { name: 'asc' },
+  });
 }
 

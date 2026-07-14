@@ -41,6 +41,24 @@ async function main() {
     });
   }
 
+  // Seed Task Types
+  console.log('Seeding task types...');
+  const taskTypes = [
+    { name: 'Social Media' },
+    { name: 'Video Production' },
+    { name: 'Graphic Design' },
+    { name: 'Copywriting' },
+    { name: 'Email Marketing' }
+  ];
+
+  for (const type of taskTypes) {
+    await prisma.taskType.upsert({
+      where: { name: type.name },
+      update: {},
+      create: type,
+    });
+  }
+
   // 3. Seed Package Builder lookups
   console.log('Seeding package builder lookups...');
   const contentTypes = [
@@ -123,13 +141,21 @@ async function main() {
   ];
 
   for (const user of users) {
+    const { role_id, ...userData } = user;
     await prisma.user.upsert({
       where: { email: user.email },
       update: {
-        role_id: user.role_id,
         password: user.password,
+        roles: {
+          set: [{ id: role_id }]
+        }
       },
-      create: user,
+      create: {
+        ...userData,
+        roles: {
+          connect: [{ id: role_id }]
+        }
+      },
     });
   }
 

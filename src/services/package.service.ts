@@ -17,6 +17,7 @@ export interface CreateContentPackageInput {
   name: string;
   clientId?: number;
   description?: string;
+  price?: number;
   items: PackageLineItemInput[];
 }
 
@@ -24,6 +25,7 @@ export interface UpdateContentPackageInput {
   name?: string;
   clientId?: number;
   description?: string;
+  price?: number;
   items?: PackageLineItemInput[];
 }
 
@@ -243,6 +245,7 @@ export function formatContentPackage(pkg: PackageWithRelations) {
     client: pkg.client ? { name: pkg.client.name } : null,
     name: pkg.name,
     description: pkg.description ?? undefined,
+    price: pkg.price !== null ? Number(pkg.price) : undefined,
     currentVersion: pkg.current_version,
     items: pkg.line_items.map((item) => ({
       id: item.id,
@@ -504,6 +507,7 @@ async function syncLineItems(
 
 export const getContentPackages = async () => {
   const packages = await prisma.contentPackage.findMany({
+    where: { is_deleted: false },
     include: packageInclude,
     orderBy: { created_at: 'desc' },
   });
@@ -512,8 +516,8 @@ export const getContentPackages = async () => {
 };
 
 export const getContentPackageById = async (id: string) => {
-  const pkg = await prisma.contentPackage.findUnique({
-    where: { id },
+  const pkg = await prisma.contentPackage.findFirst({
+    where: { id, is_deleted: false },
     include: packageInclude,
   });
 
@@ -525,7 +529,9 @@ export const getContentPackageById = async (id: string) => {
 };
 
 export const getPackageHistory = async (packageId: string) => {
-  const pkg = await prisma.contentPackage.findUnique({ where: { id: packageId } });
+  const pkg = await prisma.contentPackage.findFirst({
+    where: { id: packageId, is_deleted: false }
+  });
   if (!pkg) {
     throw new Error('Package not found');
   }
@@ -543,6 +549,13 @@ export const getPackageHistory = async (packageId: string) => {
 };
 
 export const getPackageVersion = async (packageId: string, versionNumber: number) => {
+  const pkg = await prisma.contentPackage.findFirst({
+    where: { id: packageId, is_deleted: false }
+  });
+  if (!pkg) {
+    throw new Error('Package not found');
+  }
+
   const version = await prisma.contentPackageVersion.findUnique({
     where: {
       package_id_version_number: {
@@ -581,6 +594,7 @@ export const createContentPackage = async (
       name,
       client_id: data.clientId,
       description: normalizeNotes(data.description) || null,
+      price: data.price !== undefined ? data.price : null,
       created_by_id: user.id,
       current_version: 1,
       line_items: {
@@ -634,18 +648,43 @@ const created = { pkg: createdPkg, persistedItems };
 
 
 
+async function checkPackageRestriction(id: string, user: { roleIds?: number[] }) {
+  const firstThree = await prisma.contentPackage.findMany({
+    where: { is_deleted: false },
+    orderBy: { created_at: 'asc' },
+    take: 3,
+    select: { id: true },
+  });
+  const firstThreeIds = firstThree.map((p) => p.id);
+
+  if (firstThreeIds.includes(id)) {
+    const isAdmin = user.roleIds?.includes(1);
+    if (!isAdmin) {
+      throw new Error('Forbidden: Only administrators are authorized to update or delete the first three system packages');
+    }
+  }
+}
+
 export const updateContentPackage = async (
   id: string,
   data: UpdateContentPackageInput,
-  user: { id: number }
+  user: { id: number; roleIds?: number[] }
 ) => {
-  const existing = await prisma.contentPackage.findUnique({
-    where: { id },
+  await checkPackageRestriction(id, user);
+
+  const existing = await prisma.contentPackage.findFirst({
+    where: { id, is_deleted: false },
     include: packageInclude,
   });
 
   if (!existing) {
     throw new Error('Package not found');
+  }
+
+  const isAdmin = user.roleIds?.includes(1);
+  const isCreator = existing.created_by_id === user.id;
+  if (!isAdmin && !isCreator) {
+    throw new Error('Forbidden: You are only authorized to update content packages that you created');
   }
 
   validatePackageInput(data);
@@ -656,9 +695,11 @@ export const updateContentPackage = async (
       ? normalizeNotes(data.description) || null
       : existing.description;
 
+  const nextPrice = data.price !== undefined ? data.price : existing.price !== null ? Number(existing.price) : null;
   const metadataChanged =
     nextName !== existing.name ||
-    (nextDescription ?? '') !== (existing.description ?? '');
+    (nextDescription ?? '') !== (existing.description ?? '') ||
+    nextPrice !== (existing.price !== null ? Number(existing.price) : null);
 
   if (!data.items) {
     if (!metadataChanged) {
@@ -675,6 +716,7 @@ export const updateContentPackage = async (
           name: nextName,
           client_id: data.clientId !== undefined ? data.clientId : existing.client_id,
           description: nextDescription,
+          price: nextPrice,
           current_version: nextVersion,
         },
       });
@@ -712,6 +754,9 @@ export const updateContentPackage = async (
       );
 
       return updated;
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     });
 
     return formatContentPackage(pkg);
@@ -766,6 +811,7 @@ export const updateContentPackage = async (
         name: nextName,
         client_id: data.clientId !== undefined ? data.clientId : existing.client_id,
         description: nextDescription,
+        price: nextPrice,
         current_version: nextVersion,
       },
     });
@@ -826,18 +872,34 @@ export const updateContentPackage = async (
     );
 
     return updated;
+  }, {
+    maxWait: 10000,
+    timeout: 30000,
   });
 
   return formatContentPackage(pkg);
 };
 
-export const deleteContentPackage = async (id: string) => {
-  const existing = await prisma.contentPackage.findUnique({ where: { id } });
+export const deleteContentPackage = async (id: string, user: { id: number; roleIds?: number[] }) => {
+  await checkPackageRestriction(id, user);
+
+  const existing = await prisma.contentPackage.findFirst({
+    where: { id, is_deleted: false }
+  });
   if (!existing) {
     throw new Error('Package not found');
   }
 
-  await prisma.contentPackage.delete({ where: { id } });
+  const isAdmin = user.roleIds?.includes(1);
+  const isCreator = existing.created_by_id === user.id;
+  if (!isAdmin && !isCreator) {
+    throw new Error('Forbidden: You are only authorized to delete content packages that you created');
+  }
+
+  await prisma.contentPackage.update({
+    where: { id },
+    data: { is_deleted: true },
+  });
   return { id };
 };
 

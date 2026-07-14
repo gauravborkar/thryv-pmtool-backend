@@ -17,7 +17,8 @@ export const getTasks = async (req: AuthRequest, res: Response, _next: NextFunct
     const limit = req.query.limit ? Number(req.query.limit) : undefined;
 
     const result = await taskService.listTasks({
-      role: user.role,
+      roles: user.roles,
+      roleIds: user.roleIds,
       userId: user.id,
       sortBy: req.query.sortBy as 'dueDate' | 'status' | 'client' | 'designer' | 'designerDue' | undefined,
       sortOrder: req.query.sortOrder as 'asc' | 'desc' | undefined,
@@ -56,7 +57,7 @@ export const getTaskById = async (req: AuthRequest, res: Response) => {
     }
 
     const user = req.user!;
-    const task = await taskService.getTaskById(taskId, user.role, user.id);
+    const task = await taskService.getTaskById(taskId, user.roles, user.id, user.roleIds);
 
     res.status(200).json({
       message: 'Task retrieved successfully',
@@ -79,6 +80,12 @@ export const createTask = async (req: AuthRequest, res: Response) => {
     req.body.title = sanitizeInput(title);
     if (req.body.brief) req.body.brief = sanitizeInput(req.body.brief);
     if (req.body.postSpecs) req.body.postSpecs = sanitizeInput(req.body.postSpecs);
+    if (req.body.platformSpecs && Array.isArray(req.body.platformSpecs)) {
+      req.body.platformSpecs = req.body.platformSpecs.map((spec: any) => ({
+        platformId: Number(spec.platformId),
+        postSpecs: spec.postSpecs ? sanitizeInput(String(spec.postSpecs)) : '',
+      }));
+    }
 
     const task = await taskService.createTask(req.body, req.user!.id);
     res.status(201).json({
@@ -102,8 +109,14 @@ export const updateTask = async (req: AuthRequest, res: Response) => {
     if (req.body.title) req.body.title = sanitizeInput(req.body.title);
     if (req.body.brief) req.body.brief = sanitizeInput(req.body.brief);
     if (req.body.postSpecs) req.body.postSpecs = sanitizeInput(req.body.postSpecs);
+    if (req.body.platformSpecs && Array.isArray(req.body.platformSpecs)) {
+      req.body.platformSpecs = req.body.platformSpecs.map((spec: any) => ({
+        platformId: Number(spec.platformId),
+        postSpecs: spec.postSpecs ? sanitizeInput(String(spec.postSpecs)) : '',
+      }));
+    }
 
-    const task = await taskService.updateTask(taskId, req.body, req.user!.id);
+    const task = await taskService.updateTask(taskId, req.body, req.user!.roles, req.user!.id, req.user!.roleIds);
     res.status(200).json({
       message: 'Task updated successfully',
       data: task,
@@ -136,7 +149,7 @@ export const updateTaskStatus = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'status is required' });
     }
 
-    const task = await taskService.updateTaskStatus(taskId, status, req.user!.role, req.user!.id);
+    const task = await taskService.updateTaskStatus(taskId, status, req.user!.roles, req.user!.id, req.user!.roleIds);
     res.status(200).json({
       message: 'Task status updated successfully',
       data: task,
@@ -157,7 +170,7 @@ export const assignTask = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Valid taskId and designerId are required' });
     }
 
-    const task = await taskService.assignTask(taskId, designerId, req.user!.id);
+    const task = await taskService.assignTask(taskId, designerId, req.user!.roles, req.user!.id, req.user!.roleIds);
     res.status(200).json({
       message: 'Task assigned successfully',
       data: task,
@@ -181,7 +194,7 @@ export const addTaskComment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Comment content is required' });
     }
 
-    const comment = await taskService.addComment(taskId, req.user!.id, req.user!.role, { content });
+    const comment = await taskService.addComment(taskId, req.user!.id, req.user!.roles, { content }, req.user!.roleIds);
     res.status(201).json({
       message: 'Comment added successfully',
       data: comment,
@@ -206,9 +219,9 @@ export const updateTaskComment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Comment content is required' });
     }
 
-    const comment = await taskService.updateComment(taskId, commentId, req.user!.id, req.user!.role, {
+    const comment = await taskService.updateComment(taskId, commentId, req.user!.id, req.user!.roles, {
       content,
-    });
+    }, req.user!.roleIds);
     res.status(200).json({
       message: 'Comment updated successfully',
       data: comment,
@@ -228,7 +241,7 @@ export const deleteTaskComment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid task/comment ID' });
     }
 
-    const deleted = await taskService.deleteComment(taskId, commentId, req.user!.id, req.user!.role);
+    const deleted = await taskService.deleteComment(taskId, commentId, req.user!.id, req.user!.roles, req.user!.roleIds);
     res.status(200).json({
       message: 'Comment deleted successfully',
       data: deleted,
@@ -247,7 +260,7 @@ export const deleteTask = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid task ID' });
     }
 
-    const deleted = await taskService.deleteTask(taskId);
+    const deleted = await taskService.deleteTask(taskId, req.user!.roles, req.user!.id, req.user!.roleIds);
     res.status(200).json({
       message: 'Task deleted successfully',
       data: deleted,
@@ -309,12 +322,12 @@ export const addTaskAttachment = async (req: AuthRequest, res: Response) => {
     // SECURITY HARDENING: Validate file size and type whitelists
     validateFileSecurity(fileName, fileSize);
 
-    const attachment = await taskService.addTaskAttachment(taskId, req.user!.id, req.user!.role, {
+    const attachment = await taskService.addTaskAttachment(taskId, req.user!.id, req.user!.roles, {
       fileName,
       fileUrl,
       fileType,
       fileSize,
-    });
+    }, req.user!.roleIds);
 
     res.status(201).json({
       message: 'Attachment uploaded successfully',
@@ -339,7 +352,8 @@ export const deleteTaskAttachment = async (req: AuthRequest, res: Response) => {
       taskId,
       attachmentId,
       req.user!.id,
-      req.user!.role
+      req.user!.roles,
+      req.user!.roleIds
     );
 
     res.status(200).json({
@@ -349,6 +363,34 @@ export const deleteTaskAttachment = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     res.status(getErrorStatus(error)).json({
       message: error instanceof Error ? error.message : 'Failed to delete attachment',
+    });
+  }
+};
+
+export const getTaskTypes = async (req: AuthRequest, res: Response) => {
+  try {
+    const types = await taskService.getTaskTypes();
+    res.status(200).json({
+      message: 'Task types retrieved successfully',
+      data: types,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error instanceof Error ? error.message : 'Failed to retrieve task types',
+    });
+  }
+};
+
+export const getSocialPlatforms = async (req: AuthRequest, res: Response) => {
+  try {
+    const platforms = await taskService.getSocialPlatforms();
+    res.status(200).json({
+      message: 'Social platforms retrieved successfully',
+      data: platforms,
+    });
+  } catch (error) {
+    res.status(550).json({
+      message: error instanceof Error ? error.message : 'Failed to retrieve social platforms',
     });
   }
 };

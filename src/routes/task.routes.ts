@@ -11,6 +11,8 @@ const router = Router();
  * @access Private (All roles)
  */
 router.get('/', authenticate, taskController.getTasks);
+router.get('/types', authenticate, taskController.getTaskTypes);
+router.get('/platforms', authenticate, taskController.getSocialPlatforms);
 router.get('/:id', authenticate, taskController.getTaskById);
 
 /**
@@ -18,14 +20,14 @@ router.get('/:id', authenticate, taskController.getTaskById);
  * @desc Create/Assign a task (Manager/Admin only)
  * @access Private (Admin, Manager)
  */
-router.post('/', authenticate, authorize(['ADMIN', 'MANAGER']), taskController.createTask);
+router.post('/', authenticate, authorize([1, 2]), taskController.createTask);
 
 /**
  * @route PATCH /tasks/:id/status
  * @desc Update task status (All roles)
  * @access Private
  */
-router.patch('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), taskController.updateTask);
+router.patch('/:id', authenticate, authorize([1, 2]), taskController.updateTask);
 router.patch('/:id/status', authenticate, taskController.updateTaskStatus);
 
 /**
@@ -33,7 +35,7 @@ router.patch('/:id/status', authenticate, taskController.updateTaskStatus);
  * @desc Assign task to designer (Manager/Admin only)
  * @access Private (Admin, Manager)
  */
-router.patch('/:id/assign', authenticate, authorize(['ADMIN', 'MANAGER']), taskController.assignTask);
+router.patch('/:id/assign', authenticate, authorize([1, 2]), taskController.assignTask);
 router.post('/:id/comments', authenticate, taskController.addTaskComment);
 router.patch('/:id/comments/:commentId', authenticate, taskController.updateTaskComment);
 router.delete('/:id/comments/:commentId', authenticate, taskController.deleteTaskComment);
@@ -42,7 +44,7 @@ router.delete('/:id/comments/:commentId', authenticate, taskController.deleteTas
 router.post('/:id/media', authenticate, upload.single('file'), taskController.addTaskAttachment);
 router.delete('/:id/media/:attachmentId', authenticate, taskController.deleteTaskAttachment);
 
-router.delete('/:id', authenticate, authorize(['ADMIN', 'MANAGER']), taskController.deleteTask);
+router.delete('/:id', authenticate, authorize([1, 2]), taskController.deleteTask);
 
 export default router;
 

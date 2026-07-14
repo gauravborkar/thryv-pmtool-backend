@@ -50,3 +50,49 @@ export const cacheMiddleware = (durationInSeconds: number = DEFAULT_EXPIRATION) 
     }
   };
 };
+
+export const invalidateCacheMiddleware = (linkedResources: string[] = []) => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // Only care about mutating requests
+    if (req.method === 'GET') {
+      next();
+      return;
+    }
+
+    const originalJson = res.json.bind(res);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    res.json = (body: any) => {
+      if (res.statusCode >= 200 && res.statusCode < 300 && redis.status === 'ready') {
+        const match = req.originalUrl.match(/^\/([^/?#]+)/);
+        const baseRoute = match ? `/${match[1]}` : '';
+
+        const resourcesToInvalidate = new Set<string>();
+        if (baseRoute) {
+          resourcesToInvalidate.add(baseRoute);
+        }
+        for (const resName of linkedResources) {
+          resourcesToInvalidate.add(resName.startsWith('/') ? resName : `/${resName}`);
+        }
+
+        Promise.all(
+          Array.from(resourcesToInvalidate).map(async (resource) => {
+            const pattern = `__express__${resource}*`;
+            try {
+              const keys = await redis.keys(pattern);
+              if (keys.length > 0) {
+                await redis.del(...keys);
+                console.log(`[Cache Invalidation] Cleared keys for pattern ${pattern}:`, keys);
+              }
+            } catch (err) {
+              console.error(`[Cache Invalidation] Failed to clear keys for pattern ${pattern}:`, err);
+            }
+          })
+        ).catch((err) => console.error('[Cache Invalidation] Error:', err));
+      }
+      return originalJson(body);
+    };
+
+    next();
+  };
+};

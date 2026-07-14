@@ -16,38 +16,51 @@ export type AIModelType = 'groq' | 'gemini';
 /**
  * Generate calendar entries using Google Gemini.
  */
-async function generateWithGemini(prompt: string): Promise<string> {
-  dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+async function generateWithGemini(prompt: string, customApiKey?: string | null): Promise<{ text: string, tokensUsed: number }> {
+  let activeGenAI: GoogleGenerativeAI;
   
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured in .env');
-  }
-
-  if (!genAI) {
-    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  if (customApiKey) {
+    activeGenAI = new GoogleGenerativeAI(customApiKey);
+  } else {
+    dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not configured in .env');
+    }
+    if (!genAI) {
+      genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    }
+    activeGenAI = genAI;
   }
   
-  const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const geminiModel = activeGenAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   const result = await geminiModel.generateContent(prompt);
   const response = result.response;
-  return response.text();
+  return { 
+    text: response.text(),
+    tokensUsed: response.usageMetadata?.totalTokenCount || 0
+  };
 }
 
 /**
  * Generate calendar entries using Groq.
  */
-async function generateWithGroq(prompt: string): Promise<string> {
-  dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+async function generateWithGroq(prompt: string, customApiKey?: string | null): Promise<{ text: string, tokensUsed: number }> {
+  let activeGroq: Groq;
 
-  if (!process.env.GROQ_API_KEY) {
-    throw new Error('GROQ_API_KEY is not configured in .env');
+  if (customApiKey) {
+    activeGroq = new Groq({ apiKey: customApiKey });
+  } else {
+    dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error('GROQ_API_KEY is not configured in .env');
+    }
+    if (!groq) {
+      groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    }
+    activeGroq = groq;
   }
 
-  if (!groq) {
-    groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-  }
-
-  const chatCompletion = await groq.chat.completions.create({
+  const chatCompletion = await activeGroq.chat.completions.create({
     messages: [
       {
         role: 'system',
@@ -62,7 +75,10 @@ async function generateWithGroq(prompt: string): Promise<string> {
     response_format: { type: 'json_object' },
   });
 
-  return chatCompletion.choices[0]?.message?.content || '';
+  return {
+    text: chatCompletion.choices[0]?.message?.content || '',
+    tokensUsed: chatCompletion.usage?.total_tokens || 0
+  };
 }
 
 /**
@@ -85,6 +101,15 @@ export async function buildContext(client_id: number): Promise<string> {
     if (brand.briefGuidelines) {
       context += `--- Creative Brief / Guidelines ---\n${brand.briefGuidelines}\n\n`;
     }
+    if (brand.contentPillars) {
+      context += `--- Content Pillars ---\n${brand.contentPillars}\n\n`;
+    }
+    if (brand.instagramPortal) {
+      context += `--- Client Instagram Portal ---\n${brand.instagramPortal}\n\n`;
+    }
+    if (brand.referenceLinks) {
+      context += `--- Reference / Inspirational Links ---\n${brand.referenceLinks}\n\n`;
+    }
   }
 
   // 2. Fetch Spreadsheet Knowledge
@@ -92,7 +117,7 @@ export async function buildContext(client_id: number): Promise<string> {
     where: { client_id }
   });
 
-  if (knowledgeSheets.length === 0 && !context) {
+  if (!knowledgeSheets || knowledgeSheets.length === 0) {
     return "No prior context available for this client.";
   }
 
@@ -133,31 +158,44 @@ export async function buildContext(client_id: number): Promise<string> {
 /**
  * Main entry point to generate calendar data, allowing dynamic model switching or fallback.
  */
-export async function generateCalendarData(prompt: string, requestedModel: AIModelType | 'auto' = 'auto'): Promise<string> {
+export async function generateCalendarData(prompt: string, requestedModel: AIModelType | 'auto' = 'auto', userId?: number): Promise<string> {
+  let customApiKey = null;
+
+  let generatedResult: { text: string, tokensUsed: number } | null = null;
+
   // If a specific model is requested, try it first
   if (requestedModel === 'groq') {
     try {
-      return await generateWithGroq(prompt);
+      generatedResult = await generateWithGroq(prompt, customApiKey);
     } catch (error) {
       console.warn('Groq generation failed, falling back to Gemini...', error);
-      return await generateWithGemini(prompt);
+      generatedResult = await generateWithGemini(prompt, customApiKey);
     }
-  }
-
-  if (requestedModel === 'gemini') {
+  } else if (requestedModel === 'gemini') {
     try {
-      return await generateWithGemini(prompt);
+      generatedResult = await generateWithGemini(prompt, customApiKey);
     } catch (error) {
       console.warn('Gemini generation failed, falling back to Groq...', error);
-      return await generateWithGroq(prompt);
+      generatedResult = await generateWithGroq(prompt, customApiKey);
+    }
+  } else {
+    // Auto mode: Default to Gemini as primary, fallback to Groq on 429 or failure
+    try {
+      generatedResult = await generateWithGemini(prompt, customApiKey);
+    } catch (geminiError: any) {
+      console.warn(`Auto mode (Gemini) failed: ${geminiError.message}. Falling back to Groq Llama 3.3...`);
+      try {
+        generatedResult = await generateWithGroq(prompt, customApiKey);
+      } catch (groqError: any) {
+        if (customApiKey) {
+          throw new Error(`Your custom API Key failed for both Gemini (${geminiError.message}) and Groq (${groqError.message}). Please ensure you saved a valid API key.`);
+        }
+        throw groqError;
+      }
     }
   }
 
-  // Auto mode: Default to Gemini as primary, fallback to Groq on 429 or failure
-  try {
-    return await generateWithGemini(prompt);
-  } catch (error: any) {
-    console.warn(`Auto mode (Gemini) failed: ${error.message}. Falling back to Groq Llama 3.3...`);
-    return await generateWithGroq(prompt);
-  }
+
+  return generatedResult?.text || '';
 }
+

@@ -1,11 +1,12 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import prisma from '../lib/prisma';
 
 const router = Router();
 
 // GET /users (Admin only)
-router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+router.get('/', authenticate, authorize([1]), async (req: any, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
@@ -14,7 +15,7 @@ router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
 
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = { is_active: true };
     
     if (search) {
       where.OR = [
@@ -23,7 +24,7 @@ router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
       ];
     }
     if (role && role !== 'ALL') {
-      where.role = { name: role };
+      where.roles = { some: { name: role } };
     }
 
     const [users, total] = await Promise.all([
@@ -32,7 +33,7 @@ router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
         skip,
         take: limit,
         orderBy: { created_at: 'desc' },
-        include: { role: true },
+        include: { roles: { include: { permissions: true } } },
       }),
       prisma.user.count({ where }),
     ]);
@@ -56,12 +57,16 @@ router.get('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
 import bcrypt from 'bcryptjs';
 
 // POST /users (Admin only)
-router.post('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+router.post('/', authenticate, authorize([1]), async (req: any, res) => {
   try {
-    const { email, password, name, role_id } = req.body;
+    const { email, password, name, role_ids, custom_permissions } = req.body;
+    // Support legacy role_id (single) or new role_ids (array)
+    const roleIds: number[] = role_ids
+      ? (Array.isArray(role_ids) ? role_ids : [role_ids]).map(Number)
+      : (req.body.role_id ? [Number(req.body.role_id)] : []);
     
-    if (!email || !password || !name || !role_id) {
-      return res.status(400).json({ message: 'Email, password, name, and role_id are required' });
+    if (!email || !password || !name || roleIds.length === 0) {
+      return res.status(400).json({ message: 'Email, password, name, and at least one role are required' });
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -76,9 +81,10 @@ router.post('/', authenticate, authorize(['ADMIN']), async (req: any, res) => {
         email,
         password: hashedPassword,
         name,
-        role_id: parseInt(role_id),
+        roles: { connect: roleIds.map((id) => ({ id })) },
+        custom_permissions: custom_permissions !== undefined ? (custom_permissions === null ? Prisma.DbNull : custom_permissions) : undefined,
       },
-      include: { role: true },
+      include: { roles: { include: { permissions: true } } },
     });
 
     const { password: _, ...userWithoutPassword } = user;
@@ -93,7 +99,7 @@ router.get('/me', authenticate, async (req: any, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      include: { role: true },
+      include: { roles: { include: { permissions: true } } },
     });
 
     if (!user) {
@@ -107,12 +113,15 @@ router.get('/me', authenticate, async (req: any, res) => {
   }
 });
 
-// GET /users/designers (Admin/Manager)
-router.get('/designers', authenticate, authorize(['ADMIN', 'MANAGER']), async (_req: any, res) => {
+// GET /users/designers (All authenticated users)
+router.get('/designers', authenticate, async (_req: any, res) => {
   try {
     const designers = await prisma.user.findMany({
-      where: { role: { name: 'DESIGNER' }, is_active: true },
-      select: { id: true, name: true, email: true },
+      where: {
+        roles: { none: { name: 'ADMIN' } },
+        is_active: true,
+      },
+      select: { id: true, name: true, email: true, roles: { select: { id: true, name: true } } },
       orderBy: { name: 'asc' },
     });
     res.json({ data: designers });
@@ -136,24 +145,21 @@ router.get('/taggable', authenticate, async (_req: any, res) => {
 });
 
 // DELETE /users/:id (Admin only)
-router.delete('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+router.delete('/:id', authenticate, authorize([1]), async (req: any, res) => {
   try {
     const userId = parseInt(req.params.id);
     if (isNaN(userId)) {
       return res.status(400).json({ message: 'Invalid user ID' });
     }
 
-    // Attempt to delete the user
-    await prisma.user.delete({
+    // Soft-delete the user by setting is_active: false
+    await prisma.user.update({
       where: { id: userId },
+      data: { is_active: false },
     });
 
-    res.json({ message: 'User deleted successfully' });
+    res.json({ message: 'User soft-deleted successfully' });
   } catch (error: any) {
-    // If there's a foreign key constraint error, we might want to inform the user
-    if (error.code === 'P2003') {
-      return res.status(400).json({ message: 'Cannot delete user because they are referenced by other records (e.g., tasks or clients).' });
-    }
     if (error.code === 'P2025') {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -161,14 +167,18 @@ router.delete('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) 
   }
 });
 // PUT /users/:id (Admin only)
-router.put('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => {
+router.put('/:id', authenticate, authorize([1]), async (req: any, res) => {
   try {
     const userId = parseInt(req.params.id);
     if (isNaN(userId)) {
       return res.status(400).json({ message: 'Invalid user ID' });
     }
 
-    const { email, password, name, role_id } = req.body;
+    const { email, password, name, role_ids, custom_permissions } = req.body;
+    // Support legacy role_id (single) or new role_ids (array)
+    const roleIds: number[] | undefined = role_ids
+      ? (Array.isArray(role_ids) ? role_ids : [role_ids]).map(Number)
+      : (req.body.role_id !== undefined ? [Number(req.body.role_id)] : undefined);
     
     // Check if user exists
     const existingUser = await prisma.user.findUnique({ where: { id: userId } });
@@ -187,7 +197,8 @@ router.put('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => 
     const dataToUpdate: any = {
       ...(email && { email }),
       ...(name && { name }),
-      ...(role_id && { role_id: parseInt(role_id) }),
+      ...(roleIds && { roles: { set: roleIds.map((id) => ({ id })) } }),
+      ...(custom_permissions !== undefined && { custom_permissions: custom_permissions === null ? Prisma.DbNull : custom_permissions }),
     };
 
     if (password) {
@@ -197,7 +208,7 @@ router.put('/:id', authenticate, authorize(['ADMIN']), async (req: any, res) => 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: dataToUpdate,
-      include: { role: true },
+      include: { roles: { include: { permissions: true } } },
     });
 
     const { password: _, ...userWithoutPassword } = updatedUser;
