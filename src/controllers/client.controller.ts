@@ -15,8 +15,10 @@ export const getClients = async (req: AuthRequest, res: Response, next: NextFunc
   try {
     const user = req.user!;
     const activeOnly = req.query.activeOnly !== 'false';
-    const isOnboard = req.query.isOnboard === 'true' ? true
-                    : req.query.isOnboard === 'false' ? false
+    const rawIsOnboard = req.query.isOnboard !== undefined ? req.query.isOnboard : req.query.is_onboard;
+    const isOnboard = rawIsOnboard === undefined ? undefined
+                    : String(rawIsOnboard) === 'true' ? true
+                    : String(rawIsOnboard) === 'false' ? false
                     : undefined;
     const clients = await clientService.getClients(user, activeOnly, isOnboard);
 
