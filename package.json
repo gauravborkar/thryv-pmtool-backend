@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "prepare": "node -e \"try{require.resolve('husky')}catch(e){process.exit(0)}\" && husky",
+    "postinstall": "prisma generate",
     "test": "jest"
   },
   "prisma": {
