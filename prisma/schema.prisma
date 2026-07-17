@@ -7,29 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ==================== LOOKUP TABLES ====================
-
 model UserRole {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  description String?
-  created_at  DateTime @default(now())
-
-  users       User[]
-  invitations Invitation[]
-  permissions Permission[]
-  tasks_assigned     Task[]         @relation("TaskAssignedRoles")
+  id             Int              @id @default(autoincrement())
+  name           String           @unique
+  created_at     DateTime         @default(now())
+  description    String?
+  UserToUserRole UserToUserRole[]
+  invitations    Invitation[]
+  permissions    Permission[]     @relation("PermissionToUserRole")
+  tasks_assigned Task[]           @relation("TaskAssignedRoles")
 
   @@map("user_roles")
 }
 
 model Permission {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique // e.g. "task:create", "task:assign"
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
   description String?
-  created_at  DateTime @default(now())
-
-  roles UserRole[]
+  created_at  DateTime   @default(now())
+  roles       UserRole[] @relation("PermissionToUserRole")
 
   @@map("permissions")
 }
@@ -39,11 +35,11 @@ model Invitation {
   email      String   @unique
   token      String   @unique
   role_id    Int
-  role       UserRole @relation(fields: [role_id], references: [id])
   expires_at DateTime
   is_used    Boolean  @default(false)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+  role       UserRole @relation(fields: [role_id], references: [id])
 
   @@index([token])
   @@index([email])
@@ -55,28 +51,25 @@ model TaskStatus {
   id         Int      @id @default(autoincrement())
   name       String   @unique
   created_at DateTime @default(now())
-
-  tasks Task[]
+  tasks      Task[]
 
   @@map("task_statuses")
 }
 
 model TaskType {
-  id         Int      @id @default(autoincrement())
-  name       String   @unique
-  created_at DateTime @default(now())
-
-  tasks      Task[]
-  tasks_many Task[] @relation("TaskToTaskTypes")
+  id              Int               @id @default(autoincrement())
+  name            String            @unique
+  created_at      DateTime          @default(now())
+  TaskToTaskTypes TaskToTaskTypes[]
+  tasks           Task[]
 
   @@map("task_types")
 }
 
 model ContentType {
-  id         Int      @id @default(autoincrement())
-  name       String   @unique
-  created_at DateTime @default(now())
-
+  id                 Int                             @id @default(autoincrement())
+  name               String                          @unique
+  created_at         DateTime                        @default(now())
   line_items         ContentPackageLineItem[]
   version_line_items ContentPackageVersionLineItem[]
 
@@ -84,10 +77,9 @@ model ContentType {
 }
 
 model BillingCycle {
-  id         Int      @id @default(autoincrement())
-  name       String   @unique
-  created_at DateTime @default(now())
-
+  id                 Int                             @id @default(autoincrement())
+  name               String                          @unique
+  created_at         DateTime                        @default(now())
   line_items         ContentPackageLineItem[]
   version_line_items ContentPackageVersionLineItem[]
 
@@ -95,10 +87,9 @@ model BillingCycle {
 }
 
 model SocialPlatform {
-  id         Int      @id @default(autoincrement())
-  name       String   @unique
-  created_at DateTime @default(now())
-
+  id                 Int                             @id @default(autoincrement())
+  name               String                          @unique
+  created_at         DateTime                        @default(now())
   line_items         ContentPackageLineItem[]
   version_line_items ContentPackageVersionLineItem[]
   task_specs         TaskPlatformSpec[]
@@ -106,73 +97,63 @@ model SocialPlatform {
   @@map("social_platforms")
 }
 
-// ==================== MAIN TABLES ====================
-
 model User {
-  id                     Int       @id @default(autoincrement())
-  email                  String    @unique
-  password               String
-  name                   String
-  is_active              Boolean   @default(true)
-  reset_password_token   String?   @unique
-  reset_password_expires DateTime?
-  current_session_token  String?
-  custom_permissions     Json?
-
-
-  created_at             DateTime  @default(now())
-  updated_at             DateTime  @updatedAt
-
-  // Relations
-  roles                    UserRole[]
+  id                       Int                     @id @default(autoincrement())
+  email                    String                  @unique
+  password                 String
+  name                     String
+  is_active                Boolean                 @default(true)
+  created_at               DateTime                @default(now())
+  updated_at               DateTime                @updatedAt
+  reset_password_expires   DateTime?
+  reset_password_token     String?                 @unique
+  current_session_token    String?
+  custom_permissions       Json?
+  UserToUserRole           UserToUserRole[]
+  assigned_addons          AddOn[]                 @relation("AddOnAssignee")
+  created_addons           AddOn[]                 @relation("AddOnCreator")
+  uploads                  Attachment[]
+  audit_logs               AuditLog[]
+  chat_memberships         ChatChannelMember[]
+  created_channels         ChatChannel[]           @relation("ChannelCreator")
+  chat_messages            ChatMessage[]
   managed_clients          Client[]                @relation("ClientManager")
+  comments                 Comment[]
+  content_package_versions ContentPackageVersion[] @relation("PackageVersionEditor")
+  content_packages         ContentPackage[]
+  notifications            Notification[]
+  created_subscriptions    Subscription[]          @relation("SubscriptionCreator")
   assigned_tasks           Task[]                  @relation("TaskDesigner")
   created_tasks            Task[]                  @relation("TaskCreator")
   mentioned_tasks          Task[]                  @relation("TaskMentions")
-  comments                 Comment[]
-  uploads                  Attachment[]
-  audit_logs               AuditLog[]
-  content_packages         ContentPackage[]
-  content_package_versions ContentPackageVersion[] @relation("PackageVersionEditor")
-  notifications            Notification[]
-  created_channels         ChatChannel[]           @relation("ChannelCreator")
-  chat_memberships         ChatChannelMember[]
-  chat_messages            ChatMessage[]
-  assigned_addons          AddOn[]                 @relation("AddOnAssignee")
-  created_addons           AddOn[]                 @relation("AddOnCreator")
-  created_subscriptions    Subscription[]          @relation("SubscriptionCreator")
 
-  // Indexes
   @@index([email])
   @@index([is_active])
   @@map("users")
 }
 
 model Client {
-  id                Int      @id @default(autoincrement())
+  id                Int               @id @default(autoincrement())
   name              String
   brand_details     Json?
   active_month      DateTime
   manager_id        Int
-  is_active         Boolean  @default(true)
-  is_onboard        Boolean  @default(true)
-  timezone          String   @default("UTC")
+  is_active         Boolean           @default(true)
+  timezone          String            @default("UTC")
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @updatedAt
   google_drive_link String?
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
+  is_onboard        Boolean           @default(true)
+  addons            AddOn[]
+  uploads           Attachment[]
+  calendar_entries  CalendarEntry[]
+  chat_channels     ChatChannel[]
+  knowledge         ClientKnowledge[]
+  manager           User              @relation("ClientManager", fields: [manager_id], references: [id])
+  content_packages  ContentPackage[]
+  packages          Package[]
+  subscriptions     Subscription[]
 
-  // Relations
-  manager          User              @relation("ClientManager", fields: [manager_id], references: [id])
-  packages         Package[]
-  content_packages ContentPackage[]
-  calendar_entries CalendarEntry[]
-  uploads          Attachment[]
-  knowledge        ClientKnowledge[]
-  chat_channels    ChatChannel[]
-  addons           AddOn[]
-  subscriptions    Subscription[]
-
-  // Indexes
   @@index([manager_id])
   @@index([active_month])
   @@index([is_active])
@@ -188,34 +169,30 @@ model Package {
   price       Decimal  @db.Decimal(10, 2)
   month       DateTime
   created_at  DateTime @default(now())
+  client      Client   @relation(fields: [client_id], references: [id])
 
-  // Relations
-  client Client @relation(fields: [client_id], references: [id])
-
-  // Indexes
   @@index([client_id])
   @@index([month])
   @@map("packages")
 }
 
 model ContentPackage {
-  id              String   @id @default(uuid())
-  client_id       Int?
-  name            String
-  description     String?
-  price           Decimal? @db.Decimal(10, 2)
-  created_by_id   Int
-  current_version Int      @default(1)
-  is_deleted      Boolean  @default(false)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
-
+  id               String                   @id @default(uuid())
+  name             String
+  description      String?
+  created_by_id    Int
+  created_at       DateTime                 @default(now())
+  updated_at       DateTime                 @updatedAt
+  current_version  Int                      @default(1)
+  client_id        Int?
+  is_deleted       Boolean                  @default(false)
+  price            Decimal?                 @db.Decimal(10, 2)
+  distributionRule DistributionRule?
+  scheduledPosts   ScheduledPost[]
+  line_items       ContentPackageLineItem[]
+  versions         ContentPackageVersion[]
   client           Client?                  @relation(fields: [client_id], references: [id])
   created_by       User                     @relation(fields: [created_by_id], references: [id])
-  line_items       ContentPackageLineItem[]
-  scheduledPosts   ScheduledPost[]
-  versions         ContentPackageVersion[]
-  distributionRule DistributionRule?
 
   @@index([created_by_id])
   @@index([client_id])
@@ -224,20 +201,19 @@ model ContentPackage {
 }
 
 model ContentPackageLineItem {
-  id                                String   @id @default(uuid())
+  id                                String         @id @default(uuid())
   package_id                        String
   content_type_id                   Int
   platform_id                       Int
   billing_cycle_id                  Int
-  quantity                          Int      @default(1)
+  quantity                          Int            @default(1)
   notes                             String?
-  eligible_for_partial_regeneration Boolean  @default(false)
-  created_at                        DateTime @default(now())
-
-  package       ContentPackage @relation(fields: [package_id], references: [id], onDelete: Cascade)
-  content_type  ContentType    @relation(fields: [content_type_id], references: [id])
-  platform      SocialPlatform @relation(fields: [platform_id], references: [id])
-  billing_cycle BillingCycle   @relation(fields: [billing_cycle_id], references: [id])
+  created_at                        DateTime       @default(now())
+  eligible_for_partial_regeneration Boolean        @default(false)
+  billing_cycle                     BillingCycle   @relation(fields: [billing_cycle_id], references: [id])
+  content_type                      ContentType    @relation(fields: [content_type_id], references: [id])
+  package                           ContentPackage @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  platform                          SocialPlatform @relation(fields: [platform_id], references: [id])
 
   @@index([package_id])
   @@index([content_type_id])
@@ -247,7 +223,7 @@ model ContentPackageLineItem {
 }
 
 model ContentPackageVersion {
-  id             String   @id @default(uuid())
+  id             String                          @id @default(uuid())
   package_id     String
   version_number Int
   name           String
@@ -255,11 +231,10 @@ model ContentPackageVersion {
   change_type    String
   change_summary Json?
   edited_by_id   Int
-  created_at     DateTime @default(now())
-
-  package    ContentPackage                  @relation(fields: [package_id], references: [id], onDelete: Cascade)
-  edited_by  User                            @relation("PackageVersionEditor", fields: [edited_by_id], references: [id])
-  line_items ContentPackageVersionLineItem[]
+  created_at     DateTime                        @default(now())
+  line_items     ContentPackageVersionLineItem[]
+  edited_by      User                            @relation("PackageVersionEditor", fields: [edited_by_id], references: [id])
+  package        ContentPackage                  @relation(fields: [package_id], references: [id], onDelete: Cascade)
 
   @@unique([package_id, version_number])
   @@index([package_id])
@@ -268,7 +243,7 @@ model ContentPackageVersion {
 }
 
 model ContentPackageVersionLineItem {
-  id                                String  @id @default(uuid())
+  id                                String                @id @default(uuid())
   version_id                        String
   source_line_item_id               String?
   content_type_id                   Int
@@ -277,12 +252,11 @@ model ContentPackageVersionLineItem {
   quantity                          Int
   notes                             String?
   change_kind                       String
-  eligible_for_partial_regeneration Boolean @default(false)
-
-  version       ContentPackageVersion @relation(fields: [version_id], references: [id], onDelete: Cascade)
-  content_type  ContentType           @relation(fields: [content_type_id], references: [id])
-  platform      SocialPlatform        @relation(fields: [platform_id], references: [id])
-  billing_cycle BillingCycle          @relation(fields: [billing_cycle_id], references: [id])
+  eligible_for_partial_regeneration Boolean               @default(false)
+  billing_cycle                     BillingCycle          @relation(fields: [billing_cycle_id], references: [id])
+  content_type                      ContentType           @relation(fields: [content_type_id], references: [id])
+  platform                          SocialPlatform        @relation(fields: [platform_id], references: [id])
+  version                           ContentPackageVersion @relation(fields: [version_id], references: [id], onDelete: Cascade)
 
   @@index([version_id])
   @@map("content_package_version_line_items")
@@ -294,17 +268,14 @@ model CalendarEntry {
   date            DateTime
   title           String
   description     String?
-  transcript      String?
-  hashtags        String?
-  reference_links String?
-  is_holiday      Boolean  @default(false)
   created_at      DateTime @default(now())
+  hashtags        String?
+  is_holiday      Boolean  @default(false)
+  reference_links String?
+  transcript      String?
+  client          Client   @relation(fields: [client_id], references: [id])
+  task            Task?
 
-  // Relations
-  client Client @relation(fields: [client_id], references: [id])
-  task   Task?
-
-  // Indexes
   @@index([client_id])
   @@index([date])
   @@map("calendar_entries")
@@ -317,44 +288,40 @@ model ClientKnowledge {
   data       Json
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
-
-  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  client     Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
 
   @@index([client_id])
   @@map("client_knowledge")
 }
 
 model Task {
-  id                    Int       @id @default(autoincrement())
-  calendar_entry_id     Int?      @unique
+  id                    Int                @id @default(autoincrement())
+  calendar_entry_id     Int?               @unique
   title                 String
   status_id             Int
-  task_type_id          Int?
-  priority              Int       @default(2)
-  start_date            DateTime?
+  priority              Int                @default(2)
   designer_due_date     DateTime
   publish_date          DateTime
   assigned_designer_id  Int?
   created_by_manager_id Int
-  created_at            DateTime  @default(now())
-  updated_at            DateTime  @updatedAt
-  is_deleted            Boolean   @default(false)
+  created_at            DateTime           @default(now())
+  updated_at            DateTime           @updatedAt
+  start_date            DateTime?
+  task_type_id          Int?
+  is_deleted            Boolean            @default(false)
   drive_link            String?
+  TaskToTaskTypes       TaskToTaskTypes[]
+  uploads               Attachment[]
+  comments              Comment[]
+  platform_specs        TaskPlatformSpec[]
+  assigned_designer     User?              @relation("TaskDesigner", fields: [assigned_designer_id], references: [id])
+  calendar_entry        CalendarEntry?     @relation(fields: [calendar_entry_id], references: [id])
+  created_by_manager    User               @relation("TaskCreator", fields: [created_by_manager_id], references: [id])
+  status                TaskStatus         @relation(fields: [status_id], references: [id])
+  task_type             TaskType?          @relation(fields: [task_type_id], references: [id])
+  assigned_roles        UserRole[]         @relation("TaskAssignedRoles")
+  mentioned_users       User[]             @relation("TaskMentions")
 
-  // Relations
-  calendar_entry     CalendarEntry?     @relation(fields: [calendar_entry_id], references: [id])
-  status             TaskStatus         @relation(fields: [status_id], references: [id])
-  task_type          TaskType?          @relation(fields: [task_type_id], references: [id])
-  task_types         TaskType[]         @relation("TaskToTaskTypes")
-  assigned_designer  User?              @relation("TaskDesigner", fields: [assigned_designer_id], references: [id])
-  created_by_manager User               @relation("TaskCreator", fields: [created_by_manager_id], references: [id])
-  mentioned_users    User[]             @relation("TaskMentions")
-  assigned_roles     UserRole[]         @relation("TaskAssignedRoles")
-  comments           Comment[]
-  uploads            Attachment[]
-  platform_specs     TaskPlatformSpec[]
-
-  // Indexes
   @@index([assigned_designer_id])
   @@index([status_id])
   @@index([task_type_id])
@@ -372,10 +339,8 @@ model TaskPlatformSpec {
   post_specs  String?
   created_at  DateTime       @default(now())
   updated_at  DateTime       @updatedAt
-
-  // Relations
-  task        Task           @relation(fields: [task_id], references: [id], onDelete: Cascade)
   platform    SocialPlatform @relation(fields: [platform_id], references: [id], onDelete: Cascade)
+  task        Task           @relation(fields: [task_id], references: [id], onDelete: Cascade)
 
   @@unique([task_id, platform_id])
   @@index([task_id])
@@ -389,12 +354,9 @@ model Comment {
   task_id    Int
   author_id  Int
   created_at DateTime @default(now())
+  author     User     @relation(fields: [author_id], references: [id])
+  task       Task     @relation(fields: [task_id], references: [id], onDelete: Cascade)
 
-  // Relations
-  task   Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
-  author User @relation(fields: [author_id], references: [id])
-
-  // Indexes
   @@index([task_id])
   @@index([author_id])
   @@map("comments")
@@ -410,13 +372,10 @@ model Attachment {
   client_id   Int?
   uploaded_by Int
   created_at  DateTime @default(now())
+  client      Client?  @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  task        Task?    @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [uploaded_by], references: [id])
 
-  // Relations
-  task   Task?   @relation(fields: [task_id], references: [id], onDelete: Cascade)
-  client Client? @relation(fields: [client_id], references: [id], onDelete: Cascade)
-  user   User    @relation(fields: [uploaded_by], references: [id])
-
-  // Indexes
   @@index([task_id])
   @@index([client_id])
   @@index([uploaded_by])
@@ -432,9 +391,7 @@ model AuditLog {
   details    Json?
   ip_address String?
   created_at DateTime @default(now())
-
-  // Relations
-  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  user       User?    @relation(fields: [user_id], references: [id])
 
   @@index([user_id])
   @@index([action])
@@ -442,34 +399,29 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// ==================== DISTRIBUTION RULES ====================
-
 model DistributionRule {
-  id                       Int      @id @default(autoincrement())
-  package_id               String   @unique
-  formatSequence           Json // array of format identifiers
-  peakDays                 Json // array of ISO weekday numbers (1-7)
-  maxConsecutiveSameFormat Int      @default(1)
-  regenerationMode         String   @default("ALL")
-  created_at               DateTime @default(now())
-  updated_at               DateTime @updatedAt
-
-  // Relations
-  package        ContentPackage  @relation(fields: [package_id], references: [id], onDelete: Cascade)
-  scheduledPosts ScheduledPost[]
+  id                       Int             @id @default(autoincrement())
+  package_id               String          @unique
+  formatSequence           Json
+  peakDays                 Json
+  maxConsecutiveSameFormat Int             @default(1)
+  regenerationMode         String          @default("ALL")
+  created_at               DateTime        @default(now())
+  updated_at               DateTime        @updatedAt
+  package                  ContentPackage  @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  scheduledPosts           ScheduledPost[]
 }
 
 model ScheduledPost {
-  id           Int      @id @default(autoincrement())
+  id           Int               @id @default(autoincrement())
   package_id   String
   scheduled_at DateTime
   format       String
-  is_locked    Boolean  @default(false)
-  created_at   DateTime @default(now())
-
-  package ContentPackage    @relation(fields: [package_id], references: [id])
-  rule    DistributionRule? @relation(fields: [ruleId], references: [id])
-  ruleId  Int?
+  is_locked    Boolean           @default(false)
+  created_at   DateTime          @default(now())
+  ruleId       Int?
+  package      ContentPackage    @relation(fields: [package_id], references: [id])
+  rule         DistributionRule? @relation(fields: [ruleId], references: [id])
 
   @@index([package_id])
   @@index([scheduled_at])
@@ -486,8 +438,6 @@ model BlackoutDate {
   @@map("blackout_dates")
 }
 
-// ==================== NOTIFICATIONS ====================
-
 model Notification {
   id             Int      @id @default(autoincrement())
   user_id        Int
@@ -499,15 +449,12 @@ model Notification {
   reference_type String?
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
-
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([is_read])
   @@map("notifications")
 }
-
-// ==================== SYSTEM SETTINGS ====================
 
 model RetentionPolicy {
   id         Int      @id @default(autoincrement())
@@ -522,29 +469,26 @@ model RetentionPolicy {
 model AccessControlRule {
   id         Int      @id @default(autoincrement())
   section    String   @unique
-  roles      Json     // e.g. ["ADMIN", "MANAGER"]
+  roles      Json
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   @@map("access_control_rules")
 }
 
-// ==================== CHAT ====================
-
 model ChatChannel {
-  id            Int      @id @default(autoincrement())
-  name          String? // Optional for direct messages
-  type          String // 'GROUP' | 'DIRECT' | 'CLIENT'
+  id            Int                 @id @default(autoincrement())
+  name          String?
+  type          String
   client_id     Int?
   created_by_id Int
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-  is_deleted    Boolean  @default(false)
-
-  client     Client?             @relation(fields: [client_id], references: [id], onDelete: Cascade)
-  created_by User                @relation("ChannelCreator", fields: [created_by_id], references: [id])
-  members    ChatChannelMember[]
-  messages   ChatMessage[]
+  created_at    DateTime            @default(now())
+  updated_at    DateTime            @updatedAt
+  is_deleted    Boolean             @default(false)
+  members       ChatChannelMember[]
+  client        Client?             @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  created_by    User                @relation("ChannelCreator", fields: [created_by_id], references: [id])
+  messages      ChatMessage[]
 
   @@index([client_id])
   @@index([created_by_id])
@@ -552,14 +496,13 @@ model ChatChannel {
 }
 
 model ChatChannelMember {
-  id           Int      @id @default(autoincrement())
+  id           Int         @id @default(autoincrement())
   channel_id   Int
   user_id      Int
-  joined_at    DateTime @default(now())
-  last_read_at DateTime @default(now())
-
-  channel ChatChannel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  user    User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  joined_at    DateTime    @default(now())
+  last_read_at DateTime    @default(now())
+  channel      ChatChannel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([channel_id, user_id])
   @@index([channel_id])
@@ -568,17 +511,16 @@ model ChatChannelMember {
 }
 
 model ChatMessage {
-  id         Int      @id @default(autoincrement())
+  id         Int         @id @default(autoincrement())
   channel_id Int
   sender_id  Int
   content    String
-  type       String   @default("TEXT") // 'TEXT' | 'FILE' | 'TASK_LINK'
-  metadata   Json? // Stores attachment URL or linked task ID
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  channel ChatChannel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  sender  User        @relation(fields: [sender_id], references: [id])
+  type       String      @default("TEXT")
+  metadata   Json?
+  created_at DateTime    @default(now())
+  updated_at DateTime    @updatedAt
+  channel    ChatChannel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  sender     User        @relation(fields: [sender_id], references: [id])
 
   @@index([channel_id])
   @@index([sender_id])
@@ -597,13 +539,10 @@ model AddOn {
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
   is_deleted     Boolean  @default(false)
+  assigned_to    User?    @relation("AddOnAssignee", fields: [assigned_to_id], references: [id])
+  client         Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  created_by     User     @relation("AddOnCreator", fields: [created_by_id], references: [id])
 
-  // Relations
-  client      Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
-  assigned_to User?  @relation("AddOnAssignee", fields: [assigned_to_id], references: [id])
-  created_by  User   @relation("AddOnCreator", fields: [created_by_id], references: [id])
-
-  // Indexes
   @@index([client_id])
   @@index([assigned_to_id])
   @@index([created_by_id])
@@ -622,13 +561,32 @@ model Subscription {
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
   is_deleted     Boolean  @default(false)
+  client         Client?  @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  created_by     User     @relation("SubscriptionCreator", fields: [created_by_id], references: [id])
 
-  // Relations
-  client     Client? @relation(fields: [client_id], references: [id], onDelete: Cascade)
-  created_by User    @relation("SubscriptionCreator", fields: [created_by_id], references: [id])
-
-  // Indexes
   @@index([client_id])
   @@index([created_by_id])
   @@map("subscriptions")
+}
+
+model TaskToTaskTypes {
+  A          Int
+  B          Int
+  tasks      Task     @relation(fields: [A], references: [id], onDelete: Cascade)
+  task_types TaskType @relation(fields: [B], references: [id], onDelete: Cascade)
+
+  @@unique([A, B], map: "_TaskToTaskTypes_AB_unique")
+  @@index([B], map: "_TaskToTaskTypes_B_index")
+  @@map("_TaskToTaskTypes")
+}
+
+model UserToUserRole {
+  A          Int
+  B          Int
+  users      User     @relation(fields: [A], references: [id], onDelete: Cascade)
+  user_roles UserRole @relation(fields: [B], references: [id], onDelete: Cascade)
+
+  @@unique([A, B], map: "_UserToUserRole_AB_unique")
+  @@index([B], map: "_UserToUserRole_B_index")
+  @@map("_UserToUserRole")
 }
