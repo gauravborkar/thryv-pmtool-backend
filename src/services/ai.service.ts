@@ -159,7 +159,7 @@ export async function buildContext(client_id: number): Promise<string> {
  * Main entry point to generate calendar data, allowing dynamic model switching or fallback.
  */
 export async function generateCalendarData(prompt: string, requestedModel: AIModelType | 'auto' = 'auto', userId?: number): Promise<string> {
-  let customApiKey = null;
+  const customApiKey = null;
 
   let generatedResult: { text: string, tokensUsed: number } | null = null;
 

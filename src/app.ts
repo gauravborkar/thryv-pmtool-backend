@@ -23,6 +23,34 @@ app.get('/', (_req, res) => {
   res.json({ message: 'XOXO PM Tool API' })
 })
 
+app.get('/debug-db', async (_req, res) => {
+  try {
+    const prismaModule = await import('./lib/prisma');
+    const prismaClient = prismaModule.default;
+    const url = process.env.DATABASE_URL || '';
+    const match = url.match(/@([^/]+)\/([^?]+)/);
+    const host = match ? match[1] : 'unknown';
+    const dbName = match ? match[2] : 'unknown';
+
+    const clientsCount = await prismaClient.client.count();
+    const usersCount = await prismaClient.user.count();
+
+    res.json({
+      status: 'ok',
+      database: {
+        host: host.split(':')[0],
+        name: dbName,
+      },
+      counts: {
+        clients: clientsCount,
+        users: usersCount,
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+})
+
 import authRoutes from './routes/auth.routes'
 import userRoutes from './routes/user.routes'
 import clientRoutes from './routes/client.routes'
