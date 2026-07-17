@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import redis from '../lib/redis';
+import jwt from 'jsonwebtoken';
 
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 
 // Default cache duration: 60 seconds
 const DEFAULT_EXPIRATION = 60;
@@ -19,8 +21,23 @@ export const cacheMiddleware = (durationInSeconds: number = DEFAULT_EXPIRATION) 
       return;
     }
 
-    // Build a unique cache key based on the URL and query parameters
-    const cacheKey = `__express__${req.originalUrl || req.url}`;
+    // Try to get user ID from Authorization header
+    let userId = 'public';
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        const payload = jwt.verify(token, JWT_SECRET) as any;
+        if (payload && payload.id) {
+          userId = String(payload.id);
+        }
+      }
+    } catch (err) {
+      // If token is invalid or expired, ignore and proceed as 'public'
+    }
+
+    // Build a unique cache key based on the URL, query parameters, and user ID
+    const cacheKey = `__express__${req.originalUrl || req.url}__user_${userId}`;
 
     try {
       const cachedData = await redis.get(cacheKey);
