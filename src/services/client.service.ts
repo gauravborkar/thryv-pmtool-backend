@@ -32,12 +32,33 @@ function isManagerUser(user: { roles: string[]; roleIds?: number[] }) {
 }
 
 /**
- * Helper to enforce that a manager can only access their own client.
- * Throws an error if the user is a manager and does not own the client.
+ * Helper to enforce that a manager can only access their own client,
+ * and a designer/worker can only access clients they have tasks assigned for.
  */
-function enforceOwnership(client: { manager_id: number }, user: { id: number; roles: string[]; roleIds?: number[] }) {
-  if (isManagerUser(user) && client.manager_id !== user.id) {
-    throw new Error('Forbidden: You do not have permission to access this client profile');
+async function enforceOwnership(client: { id: number; manager_id: number }, user: { id: number; roles: string[]; roleIds?: number[] }) {
+  const isAdmin = user.roleIds?.includes(1) || user.roles.includes('ADMIN');
+  const isManager = user.roleIds?.includes(2) || user.roles.includes('MANAGER');
+
+  if (isAdmin) return;
+
+  if (isManager) {
+    if (client.manager_id !== user.id) {
+      throw new Error('Forbidden: You do not have permission to access this client profile');
+    }
+  } else {
+    // Worker / Designer role: Only allow if they have an assigned, non-deleted task for this client
+    const hasAssignedTask = await prisma.task.findFirst({
+      where: {
+        calendar_entry: {
+          client_id: client.id,
+        },
+        assigned_designer_id: user.id,
+        is_deleted: false,
+      },
+    });
+    if (!hasAssignedTask) {
+      throw new Error('Forbidden: You do not have permission to access this client profile');
+    }
   }
 }
 
@@ -45,6 +66,7 @@ function enforceOwnership(client: { manager_id: number }, user: { id: number; ro
  * Lists clients based on user role.
  * - ADMIN: Can see all clients.
  * - MANAGER: Can only see clients they manage.
+ * - WORKER/DESIGNER: Can only see clients they are assigned tasks for.
  */
 export const getClients = async (user: { id: number; roles: string[]; roleIds?: number[] }, activeOnly = true, isOnboard?: boolean) => {
   const cacheKey = `clients_user_${user.id}_active_${activeOnly}_onboard_${isOnboard ?? 'all'}`;
@@ -53,8 +75,21 @@ export const getClients = async (user: { id: number; roles: string[]; roleIds?: 
 
   const whereClause: any = {};
 
-  if (isManagerUser(user)) {
+  const isAdmin = user.roleIds?.includes(1) || user.roles.includes('ADMIN');
+  const isManager = user.roleIds?.includes(2) || user.roles.includes('MANAGER');
+
+  if (isManager && !isAdmin) {
     whereClause.manager_id = user.id;
+  } else if (!isAdmin && !isManager) {
+    // Staff/Worker: Only see clients where they have an assigned, non-deleted task
+    whereClause.calendar_entries = {
+      some: {
+        task: {
+          assigned_designer_id: user.id,
+          is_deleted: false,
+        },
+      },
+    };
   }
 
   if (activeOnly) {
@@ -119,7 +154,7 @@ export const getClientById = async (id: number, user: { id: number; roles: strin
   }
 
   // Use helper for ownership enforcement
-  enforceOwnership(client, user);
+  await enforceOwnership(client, user);
 
   return client;
 };
@@ -242,7 +277,7 @@ export const updateClient = async (id: number, data: UpdateClientInput, user: { 
   }
 
   // Use helper for ownership enforcement
-  enforceOwnership(client, user);
+  await enforceOwnership(client, user);
 
   // Build updateData using only fields that are valid Prisma Client model columns.
   // DO NOT spread req.body directly – extra fields like package_ids would reach Prisma.
@@ -355,7 +390,7 @@ export const archiveClient = async (id: number, user: { id: number; roles: strin
   }
 
   // Use helper for ownership enforcement
-  enforceOwnership(client, user);
+  await enforceOwnership(client, user);
 
   const archived = await prisma.client.update({
     where: { id },
